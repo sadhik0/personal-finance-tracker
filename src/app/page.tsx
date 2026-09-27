@@ -2,6 +2,9 @@ import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/backend/services/auth.service";
 import AuthForm from "@/frontend/components/AuthForm";
 
+// Checks session state on every request - never pre-render this at build time.
+export const dynamic = "force-dynamic";
+
 export default async function Home() {
   const user = await getCurrentUser();
   if (user) redirect("/dashboard");

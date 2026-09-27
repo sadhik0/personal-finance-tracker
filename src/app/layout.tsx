@@ -1,23 +1,17 @@
-import type { Metadata } from "next";
+import { redirect } from "next/navigation";
 import type { ReactNode } from "react";
-import "./globals.css";
+import { getCurrentUser } from "@/backend/services/auth.service";
+import Shell from "@/frontend/components/Shell";
 
-export const metadata: Metadata = {
-  title: "Finance Tracker",
-  description: "Personal financial intelligence.",
-};
+// Every page under this layout depends on the logged-in user's session and
+// live database data. Without this, Next.js tries to pre-render these pages
+// at BUILD time (before any user exists), which needs a database connection
+// during the build itself and fails builds like Vercel's if that connection
+// isn't reachable from the build machine.
+export const dynamic = "force-dynamic";
 
-export default function RootLayout({ children }: { children: ReactNode }) {
-  return (
-    <html lang="en">
-      <head>
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link
-          href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
-          rel="stylesheet"
-        />
-      </head>
-      <body className="antialiased font-sans">{children}</body>
-    </html>
-  );
+export default async function AppLayout({ children }: { children: ReactNode }) {
+  const user = await getCurrentUser();
+  if (!user) redirect("/");
+  return <Shell displayName={user.displayName || user.username}>{children}</Shell>;
 }
