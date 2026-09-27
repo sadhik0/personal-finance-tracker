@@ -1,0 +1,179 @@
+@import "tailwindcss";
+
+@theme {
+  --color-bg: #0b1220;
+  --color-surface: #111827;
+  --color-elevated: #172033;
+  --color-line: #263449;
+  --color-accent: #38bdf8;
+  --color-accent2: #8b5cf6;
+  --color-pos: #22c55e;
+  --color-warn: #f59e0b;
+  --color-neg: #ef4444;
+  --color-t1: #f8fafc;
+  --color-t2: #94a3b8;
+  --font-sans: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+html,
+body {
+  background: var(--color-bg);
+  color: var(--color-t1);
+}
+
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-thumb {
+  background: #263449;
+  border-radius: 8px;
+}
+
+@keyframes fadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.animate-fadeup {
+  animation: fadeUp 0.35s ease both;
+}
+
+@keyframes pulseGlow {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.25);
+  }
+  50% {
+    box-shadow: 0 0 0 8px rgba(239, 68, 68, 0);
+  }
+}
+.animate-glow {
+  animation: pulseGlow 2.2s ease-in-out infinite;
+}
+
+@keyframes dockPop {
+  0% {
+    transform: translateY(0) scale(1);
+  }
+  35% {
+    transform: translateY(-10px) scale(1.28);
+  }
+  65% {
+    transform: translateY(-2px) scale(0.94);
+  }
+  100% {
+    transform: translateY(0) scale(1);
+  }
+}
+.dock-pop {
+  animation: dockPop 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* Liquid-glass dock: layered translucency + specular highlight, no motion needed */
+.liquid-glass {
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.14) 0%,
+    rgba(255, 255, 255, 0.04) 35%,
+    rgba(17, 24, 39, 0.6) 100%
+  );
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.45),
+    inset 0 1px 0 rgba(255, 255, 255, 0.25),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.25);
+}
+
+/* KPI border glow — desktop only, so mobile cards stay flat/fast */
+@media (min-width: 1024px) {
+  @keyframes kpiGlow {
+    0%,
+    100% {
+      box-shadow:
+        0 0 0 1px rgba(56, 189, 248, 0.25),
+        0 0 16px -4px rgba(56, 189, 248, 0.35);
+    }
+    50% {
+      box-shadow:
+        0 0 0 1px rgba(139, 92, 246, 0.3),
+        0 0 20px -3px rgba(139, 92, 246, 0.45);
+    }
+  }
+  .kpi-glow {
+    animation: kpiGlow 4.5s ease-in-out infinite;
+  }
+}
+
+.card {
+  background: var(--color-elevated);
+  border: 1px solid var(--color-line);
+  border-radius: 16px;
+  transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+}
+@media (hover: hover) {
+  .card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+    border-color: #33465f;
+  }
+}
+
+.input {
+  width: 100%;
+  background: #0f1829;
+  border: 1px solid var(--color-line);
+  border-radius: 10px;
+  padding: 0.6rem 0.75rem;
+  color: var(--color-t1);
+  font-size: 14px;
+  outline: none;
+}
+.input:focus {
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.15);
+}
+.label {
+  font-size: 12px;
+  color: var(--color-t2);
+  margin-bottom: 4px;
+  display: block;
+}
+.btn {
+  border-radius: 10px;
+  padding: 0.55rem 1rem;
+  font-size: 14px;
+  font-weight: 600;
+  transition: all 0.15s ease;
+  cursor: pointer;
+}
+.btn-primary {
+  background: linear-gradient(135deg, #38bdf8, #6366f1);
+  color: #04121f;
+}
+.btn-primary:hover {
+  filter: brightness(1.08);
+}
+.btn-ghost {
+  border: 1px solid var(--color-line);
+  color: var(--color-t1);
+  background: transparent;
+}
+.btn-ghost:hover {
+  background: #1b2740;
+}
