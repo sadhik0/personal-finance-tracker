@@ -1,4 +1,3 @@
-import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/backend/services/auth.service";
 import AuthForm from "@/frontend/components/AuthForm";
 
@@ -6,8 +5,10 @@ import AuthForm from "@/frontend/components/AuthForm";
 export const dynamic = "force-dynamic";
 
 export default async function Home() {
-  const user = await getCurrentUser();
-  if (user) redirect("/dashboard");
+  // Loop safety check: temporarily disabled automatic redirect to allow login form to load
+  // const user = await getCurrentUser();
+  // if (user) redirect("/dashboard");
+  
   return (
     <div className="min-h-screen grid lg:grid-cols-2">
       <div className="hidden lg:flex flex-col justify-between p-12 bg-[#111827] border-r border-[#263449]">
