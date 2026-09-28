@@ -7,7 +7,7 @@ export async function GET() {
   return withUser(async (user) => {
     await connectToDatabase();
     const accs = await Account.find({ userId: user.id }).sort({ sortOrder: 1, _id: 1 });
-    const txDocs = await Transaction.find({ userId: user.id });
+    const txDocs = await Transaction.find({ userId: user.id, deletedAt: null });
     const plainAccs = accs.map((a) => a.toJSON());
     const plainTxs = txDocs.map((t) => t.toJSON());
     const balances = accountBalances(plainAccs, plainTxs as never);

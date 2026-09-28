@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { api, currentPeriod, inr } from "@/frontend/lib/client";
+import { currentPeriod, inr } from "@/frontend/lib/client";
+import { deleteTransaction, listAccounts, listCategories, listTransactions } from "@/frontend/lib/offlineApi";
 import TxForm, { TYPES, type Account, type Category, type TxRecord } from "@/frontend/components/TxForm";
 import { Card, Empty, Toast } from "@/frontend/components/ui";
 
@@ -28,13 +29,10 @@ export default function TransactionsPage() {
 
   const load = useCallback(async () => {
     const { from, to } = monthBounds(period);
-    const params = new URLSearchParams({ from, to });
-    if (type) params.set("type", type);
-    if (q) params.set("q", q);
     const [t, a, c] = await Promise.all([
-      api<Tx[]>(`/api/transactions?${params}`),
-      api<Account[]>("/api/accounts"),
-      api<Category[]>("/api/categories"),
+      listTransactions({ from, to, type, q }) as Promise<Tx[]>,
+      listAccounts<Account>(),
+      listCategories<Category>(),
     ]);
     setRows(t);
     setAccounts(a);
@@ -54,8 +52,8 @@ export default function TransactionsPage() {
   const total = rows.reduce((acc, r) => acc + Number(r.amount), 0);
 
   async function remove(id: string) {
-    await api(`/api/transactions/${id}`, { method: "DELETE" });
-    setToast("Transaction deleted");
+    await deleteTransaction(id);
+    setToast(navigator.onLine ? "Transaction deleted" : "Deleted on this device — will sync when back online");
     setTimeout(() => setToast(null), 1800);
     load();
   }

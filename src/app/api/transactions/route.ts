@@ -13,9 +13,11 @@ export async function GET(req: Request) {
     const categoryId = url.searchParams.get("categoryId");
     const accountId = url.searchParams.get("accountId");
     const q = url.searchParams.get("q");
+    const updatedSince = url.searchParams.get("updatedSince");
     const limit = Math.min(Number(url.searchParams.get("limit") ?? 500), 2000);
 
-    const filter: Record<string, unknown> = { userId: user.id };
+    const filter: Record<string, unknown> = { userId: user.id, deletedAt: null };
+    if (updatedSince) filter.updatedAt = { $gt: new Date(updatedSince) };
     if (from || to) {
       filter.date = {
         ...(from ? { $gte: from } : {}),
@@ -42,7 +44,8 @@ export async function POST(req: Request) {
     if (!TX_TYPES.includes(type as never)) return bad("Invalid transaction type");
     const amount = Number(b.amount);
     if (!(amount > 0)) return bad("Amount must be greater than 0");
-    const row = await Transaction.create({
+    const clientId = b.clientId ? String(b.clientId) : null;
+    const doc = {
       userId: user.id,
       type,
       amount,
@@ -52,7 +55,18 @@ export async function POST(req: Request) {
       toAccountId: b.toAccountId ? b.toAccountId : null,
       description: String(b.description ?? ""),
       meta: b.meta ?? null,
-    });
+      updatedAt: new Date(),
+      ...(clientId ? { clientId } : {}),
+    };
+    // Upsert on (userId, clientId) when a clientId is supplied (offline sync
+    // queue retries) so a retried create can never produce a duplicate row.
+    const row = clientId
+      ? await Transaction.findOneAndUpdate(
+          { userId: user.id, clientId },
+          { $setOnInsert: doc },
+          { new: true, upsert: true },
+        )
+      : await Transaction.create(doc);
     return ok(row);
   });
 }

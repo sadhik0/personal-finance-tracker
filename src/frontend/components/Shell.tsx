@@ -5,6 +5,8 @@ import { usePathname, useRouter } from "next/navigation";
 import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import TxForm from "./TxForm";
 import { Toast } from "./ui";
+import LockScreen from "./LockScreen";
+import SyncStatus from "./SyncStatus";
 import { api, currentPeriod, periodLabel } from "@/frontend/lib/client";
 
 const NAV = [
@@ -71,6 +73,7 @@ export default function Shell({
   }
 
   return (
+    <LockScreen>
     <div className="min-h-screen bg-[#0B1220] text-[#F8FAFC]">
       {/* Sidebar */}
       <aside className="hidden lg:flex fixed inset-y-0 left-0 z-40 w-60 flex-col border-r border-[#263449] bg-[#111827] p-4">
@@ -151,10 +154,14 @@ export default function Shell({
             </div>
             <span className="text-sm font-semibold">Finance Tracker</span>
           </div>
-          <div className="hidden lg:block text-sm text-[#94A3B8]">
+          <div className="hidden lg:flex items-center gap-3 text-sm text-[#94A3B8]">
             {periodLabel(currentPeriod())}
+            <SyncStatus />
           </div>
           <div className="flex items-center gap-3">
+            <div className="lg:hidden">
+              <SyncStatus />
+            </div>
             <button
               onClick={() => setQuick(true)}
               className="hidden lg:block btn btn-primary text-xs"
@@ -259,6 +266,7 @@ export default function Shell({
       )}
       <Toast message={toast} />
     </div>
+    </LockScreen>
   );
 }
 

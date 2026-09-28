@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { api, today } from "@/frontend/lib/client";
+import { today } from "@/frontend/lib/client";
+import { createTransaction, listAccounts, listCategories, updateTransaction } from "@/frontend/lib/offlineApi";
 
 export type Account = { id: string; name: string; kind: string };
 export type Category = {
@@ -70,7 +71,7 @@ export default function TxForm({
   const [error, setError] = useState("");
 
   useEffect(() => {
-    Promise.all([api<Account[]>("/api/accounts"), api<Category[]>("/api/categories")]).then(
+    Promise.all([listAccounts<Account>(), listCategories<Category>()]).then(
       ([a, c]) => {
         setAccounts(a);
         setCategories(c);
@@ -115,9 +116,15 @@ export default function TxForm({
         description,
         meta: type === "pf" ? { share: pfShare } : null,
       };
-      if (initial?.id) await api(`/api/transactions/${initial.id}`, { method: "PUT", json: payload });
-      else await api("/api/transactions", { method: "POST", json: payload });
-      onSaved(initial?.id ? "Transaction updated" : "Transaction saved");
+      if (initial?.id) await updateTransaction(initial.id, payload);
+      else await createTransaction(payload);
+      onSaved(
+        initial?.id
+          ? "Transaction updated"
+          : navigator.onLine
+            ? "Transaction saved"
+            : "Saved on this device — will sync when back online",
+      );
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed");
     } finally {

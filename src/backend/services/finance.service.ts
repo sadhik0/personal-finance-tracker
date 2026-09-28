@@ -111,7 +111,7 @@ export async function loadContext(userId: string) {
 
 export async function txInRange(userId: string, start: string, end: string) {
   await connectToDatabase();
-  const rows = await Transaction.find({ userId, date: { $gte: start, $lte: end } });
+  const rows = await Transaction.find({ userId, deletedAt: null, date: { $gte: start, $lte: end } });
   return rows.map((r) => r.toJSON()) as Tx[];
 }
 

@@ -18,6 +18,7 @@ export async function PUT(req: Request, ctx: Ctx) {
     if (b.toAccountId !== undefined) patch.toAccountId = b.toAccountId ? b.toAccountId : null;
     if (b.description !== undefined) patch.description = String(b.description);
     if (b.meta !== undefined) patch.meta = b.meta;
+    patch.updatedAt = new Date();
     const row = await Transaction.findOneAndUpdate(
       { _id: id, userId: user.id },
       { $set: patch },
@@ -31,7 +32,10 @@ export async function DELETE(_req: Request, ctx: Ctx) {
   return withUser(async (user) => {
     await connectToDatabase();
     const { id } = await ctx.params;
-    await Transaction.deleteOne({ _id: id, userId: user.id });
+    await Transaction.updateOne(
+      { _id: id, userId: user.id },
+      { $set: { deletedAt: new Date(), updatedAt: new Date() } },
+    );
     return ok({ ok: true });
   });
 }

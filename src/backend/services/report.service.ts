@@ -25,7 +25,7 @@ export async function buildReport(
   const { start, end } = custom ? range! : monthRange(period);
   const ctx = await loadContext(userId);
 
-  const allTxDocs = await Transaction.find({ userId });
+  const allTxDocs = await Transaction.find({ userId, deletedAt: null });
   const allTx = allTxDocs.map((t) => t.toJSON()) as Tx[];
 
   const periodTx = allTx.filter((t) => t.date >= start && t.date <= end);

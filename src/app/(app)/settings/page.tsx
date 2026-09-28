@@ -3,6 +3,9 @@
 import { useCallback, useEffect, useState } from "react";
 import { api } from "@/frontend/lib/client";
 import { Card, Toast } from "@/frontend/components/ui";
+import AppLockCard from "@/frontend/components/AppLockCard";
+import BackupCard from "@/frontend/components/BackupCard";
+import db from "@/frontend/lib/db";
 import type { Category } from "@/frontend/components/TxForm";
 
 type Settings = {
@@ -544,9 +547,12 @@ export default function SettingsPage() {
             </button>
             <button
               className="btn btn-ghost w-full text-[#EF4444]"
-              onClick={() =>
-                api("/api/data", { method: "DELETE" }).then(() => flash("All transactions deleted"))
-              }
+              onClick={async () => {
+                await api("/api/data", { method: "DELETE" });
+                await db.transactions.clear();
+                await db.syncQueue.clear();
+                flash("All transactions deleted");
+              }}
             >
               Delete all transactions
             </button>
@@ -555,6 +561,11 @@ export default function SettingsPage() {
             </p>
           </div>
         </Card>
+      </div>
+
+      <div className="grid lg:grid-cols-2 gap-4">
+        <AppLockCard />
+        <BackupCard />
       </div>
       <Toast message={toast} />
     </div>

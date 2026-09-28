@@ -16,7 +16,22 @@ const transactionSchema = new Schema({
   description: { type: String, required: true, default: "" },
   meta: { type: Schema.Types.Mixed, default: null },
   createdAt: { type: Date, default: Date.now },
+  updatedAt: { type: Date, default: Date.now },
+  /** Set by the client at creation time (crypto.randomUUID()). Lets the
+   * offline sync queue retry a create safely without producing duplicates —
+   * the API upserts on (userId, clientId) instead of always inserting. */
+  clientId: { type: String },
+  /** Soft-delete so an offline device that deleted a row can propagate that
+   * deletion once it reconnects, instead of the row just disappearing. */
+  deletedAt: { type: Date, default: null },
 });
+
+// Partial index: only rows that actually have a string clientId are
+// constrained, so normal online creates (no clientId) never collide.
+transactionSchema.index(
+  { userId: 1, clientId: 1 },
+  { unique: true, partialFilterExpression: { clientId: { $type: "string" } } },
+);
 
 applyJsonTransform(transactionSchema);
 
