@@ -10,7 +10,11 @@
 // for transaction data go through IndexedDB (see frontend/lib/offlineApi.ts),
 // not through a stale cached JSON response.
 
-const CACHE = "pft-shell-v1";
+const CACHE = "pft-shell-v2";
+
+// Only store normal successful responses: never redirects (e.g. a bounce to
+// the login page) or error pages.
+const cacheable = (res) => res && res.ok && !res.redirected && res.type === "basic";
 
 self.addEventListener("install", (event) => {
   self.skipWaiting();
@@ -39,8 +43,10 @@ self.addEventListener("fetch", (event) => {
       caches.match(req).then((cached) => {
         if (cached) return cached;
         return fetch(req).then((res) => {
-          const copy = res.clone();
-          caches.open(CACHE).then((c) => c.put(req, copy));
+          if (cacheable(res)) {
+            const copy = res.clone();
+            caches.open(CACHE).then((c) => c.put(req, copy));
+          }
           return res;
         });
       }),
@@ -52,8 +58,10 @@ self.addEventListener("fetch", (event) => {
   event.respondWith(
     fetch(req)
       .then((res) => {
-        const copy = res.clone();
-        caches.open(CACHE).then((c) => c.put(req, copy));
+        if (cacheable(res)) {
+          const copy = res.clone();
+          caches.open(CACHE).then((c) => c.put(req, copy));
+        }
         return res;
       })
       .catch(() => caches.match(req).then((cached) => cached || caches.match("/dashboard"))),

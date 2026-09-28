@@ -10,6 +10,7 @@ export default function AuthForm() {
   const [username, setUsername] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [password, setPassword] = useState("");
+  const [inviteCode, setInviteCode] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
@@ -20,27 +21,11 @@ export default function AuthForm() {
     try {
       await api(`/api/auth/${mode}`, {
         method: "POST",
-        json: { username, password, displayName },
+        json:
+          mode === "register"
+            ? { username, password, displayName, inviteCode }
+            : { username, password },
       });
-      router.push("/dashboard");
-      router.refresh();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function demo() {
-    setBusy(true);
-    setError("");
-    try {
-      const u = `demo${Math.floor(Math.random() * 100000)}`;
-      await api("/api/auth/register", {
-        method: "POST",
-        json: { username: u, password: "demo1234", displayName: "Sadhik" },
-      });
-      await api("/api/demo", { method: "POST" });
       router.push("/dashboard");
       router.refresh();
     } catch (err) {
@@ -88,6 +73,17 @@ export default function AuthForm() {
             autoComplete={mode === "login" ? "current-password" : "new-password"}
           />
         </div>
+        {mode === "register" && (
+          <div>
+            <label className="label">Invite code</label>
+            <input
+              className="input"
+              value={inviteCode}
+              onChange={(e) => setInviteCode(e.target.value)}
+              autoComplete="off"
+            />
+          </div>
+        )}
         {error && <p className="text-sm text-[#EF4444]">{error}</p>}
         <button className="btn btn-primary w-full" disabled={busy}>
           {busy ? "Please wait…" : mode === "login" ? "Log in" : "Create account"}
@@ -99,11 +95,6 @@ export default function AuthForm() {
       >
         {mode === "login" ? "Need an account? Register" : "Already registered? Log in"}
       </button>
-      <div className="mt-4 border-t border-[#263449] pt-4">
-        <button onClick={demo} disabled={busy} className="btn btn-ghost w-full text-xs">
-          Explore demo with sample data
-        </button>
-      </div>
     </div>
   );
 }

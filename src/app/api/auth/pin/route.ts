@@ -2,6 +2,7 @@ import { connectToDatabase } from "@/backend/db/connect";
 import { User } from "@/backend/models";
 import { bad, ok, withUser } from "@/backend/utils/response";
 import { hashPassword, verifyPassword } from "@/backend/services/auth.service";
+import { allow, tooMany } from "@/backend/services/rateLimit.service";
 
 /**
  * The PIN is verified locally on-device (so app-lock works offline) — this
@@ -35,6 +36,7 @@ export async function PUT(req: Request) {
   return withUser(async (user) => {
     await connectToDatabase();
     const b = await req.json();
+    if (!(await allow(`pin:${user.id}`, 5, 900))) return tooMany();
     if (!user.pinHash) return bad("No PIN set", 404);
     const okPin = verifyPassword(String(b.pin ?? ""), user.pinHash);
     if (!okPin) return bad("Incorrect PIN", 401);

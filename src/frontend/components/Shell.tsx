@@ -8,6 +8,7 @@ import { Toast } from "./ui";
 import LockScreen from "./LockScreen";
 import SyncStatus from "./SyncStatus";
 import { api, currentPeriod, periodLabel } from "@/frontend/lib/client";
+import { clearLocalData, confirmLogout } from "@/frontend/lib/localData";
 
 const NAV = [
   { href: "/dashboard", label: "Dashboard", icon: "◉" },
@@ -67,7 +68,14 @@ export default function Shell({
   }
 
   async function logout() {
-    await api("/api/auth/logout", { method: "POST" });
+    if (!(await confirmLogout())) return;
+    try {
+      await api("/api/auth/logout", { method: "POST" });
+    } catch {
+      window.alert("You need an internet connection to log out.");
+      return;
+    }
+    await clearLocalData();
     router.push("/");
     router.refresh();
   }

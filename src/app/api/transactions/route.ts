@@ -27,7 +27,10 @@ export async function GET(req: Request) {
     if (type) filter.type = type;
     if (categoryId) filter.categoryId = categoryId;
     if (accountId) filter.accountId = accountId;
-    if (q) filter.description = { $regex: q, $options: "i" };
+    if (q) {
+      const literal = q.slice(0, 100).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      filter.description = { $regex: literal, $options: "i" };
+    }
 
     const rows = await Transaction.find(filter)
       .sort({ date: -1, _id: -1 })
