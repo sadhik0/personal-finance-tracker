@@ -24,10 +24,13 @@ export default function AccountsPage() {
   const [kind, setKind] = useState("bank");
   const [opening, setOpening] = useState("");
   const [toast, setToast] = useState<string | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<Acc | null>(null);
+  const [deleteBusy, setDeleteBusy] = useState(false);
 
   const load = useCallback(async () => setAccounts(await api<Acc[]>("/api/accounts")), []);
   useEffect(() => {
-    load();
+    const timer = window.setTimeout(() => void load(), 0);
+    return () => window.clearTimeout(timer);
   }, [load]);
 
   async function openAccount(id: string) {
@@ -57,6 +60,23 @@ export default function AccountsPage() {
     const stored = a.kind === "loan" ? -Math.abs(entered) : entered;
     await api(`/api/accounts/${a.id}`, { method: "PUT", json: { openingBalance: stored } });
     load();
+  }
+
+  async function deleteAccount() {
+    if (!confirmDelete) return;
+    setDeleteBusy(true);
+    try {
+      await api(`/api/accounts/${confirmDelete.id}`, { method: "DELETE" });
+      if (open === confirmDelete.id) setOpen(null);
+      setConfirmDelete(null);
+      setToast(`${confirmDelete.name} deleted`);
+      await load();
+    } catch (err) {
+      setToast(err instanceof Error ? err.message : "Could not delete account");
+    } finally {
+      setDeleteBusy(false);
+      setTimeout(() => setToast(null), 2200);
+    }
   }
 
   const assets = accounts.filter((a) => a.kind !== "loan").reduce((s, a) => s + a.balance, 0);
@@ -124,6 +144,16 @@ export default function AccountsPage() {
                 ))}
               </div>
             )}
+            <div className="mt-3 flex justify-end border-t border-[#263449] pt-3">
+              <button
+                type="button"
+                className="text-xs font-medium text-[#F87171] transition-colors hover:text-[#FCA5A5] hover:underline"
+                onClick={() => setConfirmDelete(a)}
+                aria-label={`Delete ${a.name}`}
+              >
+                Delete account
+              </button>
+            </div>
           </div>
         ))}
       </div>
@@ -153,6 +183,55 @@ export default function AccountsPage() {
           <button className="btn btn-primary">Add account</button>
         </form>
       </Card>
+      {confirmDelete && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+          role="presentation"
+          onMouseDown={(e) => {
+            if (e.target === e.currentTarget && !deleteBusy) setConfirmDelete(null);
+          }}
+        >
+          <div
+            className="w-full max-w-md rounded-2xl border border-[#334155] bg-[#111827] p-5 shadow-2xl"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="delete-account-title"
+          >
+            <div className="flex items-start gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#7F1D1D]/40 text-[#FCA5A5]">
+                !
+              </div>
+              <div>
+                <h2 id="delete-account-title" className="text-lg font-semibold">
+                  Delete {confirmDelete.name}?
+                </h2>
+                <p className="mt-1 text-sm leading-6 text-[#94A3B8]">
+                  This removes the account from your tracker. Its existing transactions are not deleted, but they
+                  will no longer contribute to this account&apos;s displayed balance.
+                </p>
+              </div>
+            </div>
+            <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                className="btn btn-ghost"
+                disabled={deleteBusy}
+                onClick={() => setConfirmDelete(null)}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="rounded-lg bg-[#B91C1C] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#DC2626] disabled:cursor-not-allowed disabled:opacity-60"
+                disabled={deleteBusy}
+                onClick={deleteAccount}
+              >
+                {deleteBusy ? "Deleting…" : "Delete account"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       <Toast message={toast} />
     </div>
   );

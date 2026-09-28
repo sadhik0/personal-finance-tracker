@@ -76,6 +76,9 @@ export default function TxForm({
         setAccounts(a);
         setCategories(c);
         if (!initial?.accountId) setAccountId(String(a.find((x) => x.kind === "bank")?.id ?? ""));
+        if (!initial?.toAccountId && (type === "loan_interest_accrual" || type === "loan_repayment")) {
+          setToAccountId(String(a.find((x) => x.kind === "loan")?.id ?? ""));
+        }
         if (initial?.categoryId) {
           const cat = c.find((x) => x.id === initial.categoryId);
           if (cat?.parentId) setParentId(String(cat.parentId));
@@ -83,7 +86,7 @@ export default function TxForm({
         }
       },
     );
-  }, [initial?.accountId, initial?.categoryId]);
+  }, [initial?.accountId, initial?.categoryId, initial?.toAccountId, type]);
 
   const wantedCatType = type === "income" ? "income" : "expense";
   const parents = useMemo(
@@ -96,14 +99,19 @@ export default function TxForm({
   );
 
   const showCategory = type === "expense" || type === "income";
-  const showTo = ["transfer", "investment", "loan_repayment", "pf"].includes(type);
-  const showFrom = type !== "pf";
+  const isLoanInterest = type === "loan_interest_accrual";
+  const showTo = ["transfer", "investment", "loan_repayment", "loan_interest_accrual", "pf"].includes(type);
+  const showFrom = type !== "pf" && !isLoanInterest;
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
     const amt = Number(amount);
     if (!(amt > 0)) return setError("Amount must be greater than 0");
+    if (isLoanInterest && !toAccountId) return setError("Select the loan account receiving the interest");
+    if (type === "loan_repayment" && (!accountId || !toAccountId)) {
+      return setError("Select both the payment account and the loan being repaid");
+    }
     setBusy(true);
     try {
       const payload = {
@@ -135,7 +143,7 @@ export default function TxForm({
   const toKindHint =
     type === "investment"
       ? "investment"
-      : type === "loan_repayment"
+      : type === "loan_repayment" || type === "loan_interest_accrual"
         ? "loan"
         : type === "pf"
           ? "pf"
@@ -159,7 +167,17 @@ export default function TxForm({
       <div className="grid grid-cols-2 gap-3">
         <div>
           <label className="label">Transaction type</label>
-          <select className="input" value={type} onChange={(e) => setType(e.target.value)}>
+          <select
+            className="input"
+            value={type}
+            onChange={(e) => {
+              const next = e.target.value;
+              setType(next);
+              if ((next === "loan_interest_accrual" || next === "loan_repayment") && !toAccountId) {
+                setToAccountId(String(accounts.find((a) => a.kind === "loan")?.id ?? ""));
+              }
+            }}
+          >
             {TYPES.map((t) => (
               <option key={t.value} value={t.value}>
                 {t.label}
@@ -239,7 +257,9 @@ export default function TxForm({
         )}
         {showTo && (
           <div>
-            <label className="label">{type === "loan_repayment" ? "Loan being repaid" : "To account"}</label>
+            <label className="label">
+              {type === "loan_repayment" || isLoanInterest ? "Loan account" : "To account"}
+            </label>
             <select
               className="input"
               value={toAccountId}

@@ -13,6 +13,7 @@ import {
   text,
 } from "@/backend/utils/validate";
 import { ownedOrNull } from "@/backend/utils/ownership";
+import { validateTransactionAccountRoles } from "@/backend/utils/transactionRules";
 
 export async function GET(req: Request) {
   return withUser(async (user) => {
@@ -63,9 +64,11 @@ export async function POST(req: Request) {
       ownedOrNull(Account, user.id, idOrNull(b.accountId, "accountId")),
       ownedOrNull(Account, user.id, idOrNull(b.toAccountId, "toAccountId")),
     ]);
+    const type = oneOf(b.type, "type", TX_TYPES, "expense");
+    await validateTransactionAccountRoles(user.id, type, accountId, toAccountId);
     const doc = {
       userId: user.id,
-      type: oneOf(b.type, "type", TX_TYPES, "expense"),
+      type,
       amount: positive(b.amount, "Amount"),
       date: b.date === undefined ? new Date().toISOString().slice(0, 10) : isoDate(b.date, "Date"),
       categoryId,
