@@ -72,6 +72,7 @@ export default function AuthForm() {
             onChange={(e) => setPassword(e.target.value)}
             autoComplete={mode === "login" ? "current-password" : "new-password"}
           />
+          {mode === "register" && <p className="mt-1 text-[11px] text-[#94A3B8]">At least 10 characters.</p>}
         </div>
         {mode === "register" && (
           <div>

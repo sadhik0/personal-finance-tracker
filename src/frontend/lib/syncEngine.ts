@@ -50,8 +50,11 @@ export async function flushQueue() {
         await applyOne(item);
         await db.syncQueue.delete(item.id!);
       } catch (err) {
-        const isNetworkError = err instanceof TypeError; // fetch throws TypeError when offline/unreachable
-        if (isNetworkError) {
+        // fetch throws TypeError when offline/unreachable. A 429 (rate limited)
+        // or 5xx (server hiccup) is also temporary: keep the item and retry later.
+        const status = (err as { status?: number }).status;
+        const retryLater = err instanceof TypeError || status === 429 || (status !== undefined && status >= 500);
+        if (retryLater) {
           setStatus({ lastError: "Offline — will retry when back online" });
           break; // stop here, keep order, try again next flush
         }

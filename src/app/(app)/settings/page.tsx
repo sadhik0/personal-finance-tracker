@@ -5,6 +5,7 @@ import { api } from "@/frontend/lib/client";
 import { Card, Toast } from "@/frontend/components/ui";
 import AppLockCard from "@/frontend/components/AppLockCard";
 import BackupCard from "@/frontend/components/BackupCard";
+import DeleteAccountCard from "@/frontend/components/DeleteAccountCard";
 import db from "@/frontend/lib/db";
 import type { Category } from "@/frontend/components/TxForm";
 
@@ -521,7 +522,7 @@ export default function SettingsPage() {
               />
             </div>
             <div>
-              <label className="label">New password</label>
+              <label className="label">New password (at least 10 characters)</label>
               <input
                 type="password"
                 className="input"
@@ -540,14 +541,9 @@ export default function SettingsPage() {
         <Card title="Data">
           <div className="space-y-3">
             <button
-              className="btn btn-ghost w-full"
-              onClick={() => api("/api/demo", { method: "POST" }).then(() => flash("Sample data loaded"))}
-            >
-              Load 4 months of sample data
-            </button>
-            <button
               className="btn btn-ghost w-full text-[#EF4444]"
               onClick={async () => {
+                if (!window.confirm("Delete ALL your transactions? This cannot be undone.")) return;
                 await api("/api/data", { method: "DELETE" });
                 await db.transactions.clear();
                 await db.syncQueue.clear();
@@ -566,6 +562,10 @@ export default function SettingsPage() {
       <div className="grid lg:grid-cols-2 gap-4">
         <AppLockCard />
         <BackupCard />
+      </div>
+
+      <div className="grid lg:grid-cols-2 gap-4">
+        <DeleteAccountCard />
       </div>
       <Toast message={toast} />
     </div>

@@ -1,7 +1,18 @@
 import { connectToDatabase } from "@/backend/db/connect";
-import { Transaction } from "@/backend/models";
-import { bad, ok, withUser } from "@/backend/utils/response";
+import { Account, Category, Transaction } from "@/backend/models";
+import { ok, withUser } from "@/backend/utils/response";
 import { TX_TYPES } from "@/backend/services/finance.service";
+import {
+  clientIdOrNull,
+  idOrNull,
+  isoDate,
+  metaOrNull,
+  oneOf,
+  positive,
+  readJson,
+  text,
+} from "@/backend/utils/validate";
+import { ownedOrNull } from "@/backend/utils/ownership";
 
 export async function GET(req: Request) {
   return withUser(async (user) => {
@@ -10,21 +21,24 @@ export async function GET(req: Request) {
     const from = url.searchParams.get("from");
     const to = url.searchParams.get("to");
     const type = url.searchParams.get("type");
-    const categoryId = url.searchParams.get("categoryId");
-    const accountId = url.searchParams.get("accountId");
+    const categoryId = idOrNull(url.searchParams.get("categoryId"), "categoryId");
+    const accountId = idOrNull(url.searchParams.get("accountId"), "accountId");
     const q = url.searchParams.get("q");
     const updatedSince = url.searchParams.get("updatedSince");
-    const limit = Math.min(Number(url.searchParams.get("limit") ?? 500), 2000);
+    const limit = Math.min(Math.max(Math.floor(Number(url.searchParams.get("limit"))) || 500, 1), 2000);
 
     const filter: Record<string, unknown> = { userId: user.id, deletedAt: null };
-    if (updatedSince) filter.updatedAt = { $gt: new Date(updatedSince) };
+    if (updatedSince) {
+      const since = new Date(updatedSince);
+      if (!Number.isNaN(since.getTime())) filter.updatedAt = { $gt: since };
+    }
     if (from || to) {
       filter.date = {
-        ...(from ? { $gte: from } : {}),
-        ...(to ? { $lte: to } : {}),
+        ...(from ? { $gte: isoDate(from, "from") } : {}),
+        ...(to ? { $lte: isoDate(to, "to") } : {}),
       };
     }
-    if (type) filter.type = type;
+    if (type) filter.type = oneOf(type, "type", TX_TYPES);
     if (categoryId) filter.categoryId = categoryId;
     if (accountId) filter.accountId = accountId;
     if (q) {
@@ -42,22 +56,23 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   return withUser(async (user) => {
     await connectToDatabase();
-    const b = await req.json();
-    const type = String(b.type ?? "expense");
-    if (!TX_TYPES.includes(type as never)) return bad("Invalid transaction type");
-    const amount = Number(b.amount);
-    if (!(amount > 0)) return bad("Amount must be greater than 0");
-    const clientId = b.clientId ? String(b.clientId) : null;
+    const b = await readJson(req);
+    const clientId = clientIdOrNull(b.clientId);
+    const [categoryId, accountId, toAccountId] = await Promise.all([
+      ownedOrNull(Category, user.id, idOrNull(b.categoryId, "categoryId")),
+      ownedOrNull(Account, user.id, idOrNull(b.accountId, "accountId")),
+      ownedOrNull(Account, user.id, idOrNull(b.toAccountId, "toAccountId")),
+    ]);
     const doc = {
       userId: user.id,
-      type,
-      amount,
-      date: String(b.date ?? new Date().toISOString().slice(0, 10)),
-      categoryId: b.categoryId ? b.categoryId : null,
-      accountId: b.accountId ? b.accountId : null,
-      toAccountId: b.toAccountId ? b.toAccountId : null,
-      description: String(b.description ?? ""),
-      meta: b.meta ?? null,
+      type: oneOf(b.type, "type", TX_TYPES, "expense"),
+      amount: positive(b.amount, "Amount"),
+      date: b.date === undefined ? new Date().toISOString().slice(0, 10) : isoDate(b.date, "Date"),
+      categoryId,
+      accountId,
+      toAccountId,
+      description: text(b.description, "Description", { max: 500, clip: true }),
+      meta: metaOrNull(b.meta),
       updatedAt: new Date(),
       ...(clientId ? { clientId } : {}),
     };

@@ -5,6 +5,8 @@ import { Session, User } from "@/backend/models";
 import type { UserDoc } from "@/backend/models/User";
 
 export const SESSION_COOKIE = "pft_session";
+/** Minimum length for NEW passwords (existing passwords keep working). */
+export const MIN_PASSWORD = 10;
 
 export function hashPassword(password: string) {
   const salt = randomBytes(16).toString("hex");

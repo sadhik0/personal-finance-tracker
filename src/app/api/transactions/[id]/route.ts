@@ -1,23 +1,29 @@
 import { connectToDatabase } from "@/backend/db/connect";
-import { Transaction } from "@/backend/models";
+import { Account, Category, Transaction } from "@/backend/models";
 import { ok, withUser } from "@/backend/utils/response";
+import { TX_TYPES } from "@/backend/services/finance.service";
+import { idOrNull, isoDate, metaOrNull, oneOf, paramId, positive, readJson, text } from "@/backend/utils/validate";
+import { ownedOrNull } from "@/backend/utils/ownership";
 
 type Ctx = { params: Promise<{ id: string }> };
 
 export async function PUT(req: Request, ctx: Ctx) {
   return withUser(async (user) => {
     await connectToDatabase();
-    const { id } = await ctx.params;
-    const b = await req.json();
+    const id = paramId((await ctx.params).id);
+    const b = await readJson(req);
     const patch: Record<string, unknown> = {};
-    if (b.type !== undefined) patch.type = String(b.type);
-    if (b.amount !== undefined) patch.amount = Number(b.amount);
-    if (b.date !== undefined) patch.date = String(b.date);
-    if (b.categoryId !== undefined) patch.categoryId = b.categoryId ? b.categoryId : null;
-    if (b.accountId !== undefined) patch.accountId = b.accountId ? b.accountId : null;
-    if (b.toAccountId !== undefined) patch.toAccountId = b.toAccountId ? b.toAccountId : null;
-    if (b.description !== undefined) patch.description = String(b.description);
-    if (b.meta !== undefined) patch.meta = b.meta;
+    if (b.type !== undefined) patch.type = oneOf(b.type, "type", TX_TYPES);
+    if (b.amount !== undefined) patch.amount = positive(b.amount, "Amount");
+    if (b.date !== undefined) patch.date = isoDate(b.date, "Date");
+    if (b.categoryId !== undefined)
+      patch.categoryId = await ownedOrNull(Category, user.id, idOrNull(b.categoryId, "categoryId"));
+    if (b.accountId !== undefined)
+      patch.accountId = await ownedOrNull(Account, user.id, idOrNull(b.accountId, "accountId"));
+    if (b.toAccountId !== undefined)
+      patch.toAccountId = await ownedOrNull(Account, user.id, idOrNull(b.toAccountId, "toAccountId"));
+    if (b.description !== undefined) patch.description = text(b.description, "Description", { max: 500, clip: true });
+    if (b.meta !== undefined) patch.meta = metaOrNull(b.meta);
     patch.updatedAt = new Date();
     const row = await Transaction.findOneAndUpdate(
       { _id: id, userId: user.id },
@@ -31,7 +37,7 @@ export async function PUT(req: Request, ctx: Ctx) {
 export async function DELETE(_req: Request, ctx: Ctx) {
   return withUser(async (user) => {
     await connectToDatabase();
-    const { id } = await ctx.params;
+    const id = paramId((await ctx.params).id);
     await Transaction.updateOne(
       { _id: id, userId: user.id },
       { $set: { deletedAt: new Date(), updatedAt: new Date() } },

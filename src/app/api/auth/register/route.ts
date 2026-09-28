@@ -1,6 +1,6 @@
 import { connectToDatabase } from "@/backend/db/connect";
 import { User } from "@/backend/models";
-import { createSession, hashPassword } from "@/backend/services/auth.service";
+import { MIN_PASSWORD, createSession, hashPassword } from "@/backend/services/auth.service";
 import { createHash, timingSafeEqual } from "crypto";
 import { bad, ok } from "@/backend/utils/response";
 import { allow, clientIp, tooMany } from "@/backend/services/rateLimit.service";
@@ -26,7 +26,7 @@ export async function POST(req: Request) {
   if (username.length < 3) return bad("Username must be at least 3 characters");
   if (username.length > 32) return bad("Username must be at most 32 characters");
   if (password.length > 200) return bad("Password is too long");
-  if (password.length < 6) return bad("Password must be at least 6 characters");
+  if (password.length < MIN_PASSWORD) return bad(`Password must be at least ${MIN_PASSWORD} characters`);
 
   const existing = await User.findOne({ username });
   if (existing) return bad("Username already taken");

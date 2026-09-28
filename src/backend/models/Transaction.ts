@@ -26,6 +26,9 @@ const transactionSchema = new Schema({
   deletedAt: { type: Date, default: null },
 });
 
+// Speeds up the common "my transactions in a date range" queries.
+transactionSchema.index({ userId: 1, deletedAt: 1, date: -1 });
+
 // Partial index: only rows that actually have a string clientId are
 // constrained, so normal online creates (no clientId) never collide.
 transactionSchema.index(

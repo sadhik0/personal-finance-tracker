@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/backend/services/auth.service";
 import type { UserDoc } from "@/backend/models/User";
+import { InputError } from "@/backend/utils/validate";
 
 /**
  * Wrap an API route handler so it:
@@ -16,11 +17,14 @@ export async function withUser(
   try {
     return await fn(user);
   } catch (e) {
+    // Our own validation messages are safe to show. Anything else (database
+    // errors, bugs) is logged on the server and hidden from the client.
+    if (e instanceof InputError) return NextResponse.json({ error: e.message }, { status: 400 });
+    const name = e instanceof Error ? e.name : "";
+    if (name === "CastError" || name === "ValidationError")
+      return NextResponse.json({ error: "Invalid data" }, { status: 400 });
     console.error(e);
-    return NextResponse.json(
-      { error: e instanceof Error ? e.message : "Server error" },
-      { status: 400 },
-    );
+    return NextResponse.json({ error: "Something went wrong. Please try again." }, { status: 500 });
   }
 }
 
