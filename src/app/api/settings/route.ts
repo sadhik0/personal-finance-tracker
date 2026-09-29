@@ -3,8 +3,8 @@ import { Settings } from "@/backend/models";
 import { ok, withUser } from "@/backend/utils/response";
 import { num, oneOf, readJson, text } from "@/backend/utils/validate";
 
-export async function GET() {
-  return withUser(async (user) => {
+export async function GET(req: Request) {
+  return withUser(req, async (user) => {
     await connectToDatabase();
     let row = await Settings.findOne({ userId: user.id });
     if (!row) row = await Settings.create({ userId: user.id });
@@ -13,7 +13,7 @@ export async function GET() {
 }
 
 export async function PUT(req: Request) {
-  return withUser(async (user) => {
+  return withUser(req, async (user) => {
     await connectToDatabase();
     const b = await readJson(req);
     const patch: Record<string, unknown> = {};

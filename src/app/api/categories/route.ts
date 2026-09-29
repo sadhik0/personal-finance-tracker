@@ -7,8 +7,8 @@ import { mustOwn } from "@/backend/utils/ownership";
 const BUCKETS = ["needs", "wants", "savings", "none"] as const;
 const CATEGORY_TYPES = ["expense", "income"] as const;
 
-export async function GET() {
-  return withUser(async (user) => {
+export async function GET(req: Request) {
+  return withUser(req, async (user) => {
     await connectToDatabase();
     const rows = await Category.find({ userId: user.id }).sort({ sortOrder: 1, _id: 1 });
     return ok(rows);
@@ -16,7 +16,7 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
-  return withUser(async (user) => {
+  return withUser(req, async (user) => {
     await connectToDatabase();
     const b = await readJson(req);
     const parentId = await mustOwn(Category, user.id, idOrNull(b.parentId, "parentId"), "Parent category");

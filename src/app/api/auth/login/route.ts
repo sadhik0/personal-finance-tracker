@@ -1,3 +1,4 @@
+import { requireSameOrigin } from "@/backend/utils/sameOrigin";
 import { connectToDatabase } from "@/backend/db/connect";
 import { User } from "@/backend/models";
 import { createSession, hashPassword, verifyPassword } from "@/backend/services/auth.service";
@@ -5,12 +6,15 @@ import { createSession, hashPassword, verifyPassword } from "@/backend/services/
 // Checked against when the username does not exist, so an unknown username
 // takes about as long to reject as a wrong password (no user-guessing by timing).
 let dummyHash: string | null = null;
+import { readJsonOrEmpty } from "@/backend/utils/validate";
 import { bad, ok } from "@/backend/utils/response";
 import { allow, clientIp, tooMany } from "@/backend/services/rateLimit.service";
 
 export async function POST(req: Request) {
+  const blocked = requireSameOrigin(req);
+  if (blocked) return blocked;
   await connectToDatabase();
-  const body = await req.json().catch(() => ({}));
+  const body = await readJsonOrEmpty(req);
   const username = String(body.username ?? "").trim().toLowerCase();
   const password = String(body.password ?? "");
   const ip = clientIp(req);

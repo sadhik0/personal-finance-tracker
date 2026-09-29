@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useTxSaved } from "@/frontend/lib/useTxSaved";
 import {
   Bar as RBar,
   BarChart,
@@ -50,9 +51,16 @@ export default function AnalyticsPage() {
     setCustomOn(true);
   }
 
+  const saved = useTxSaved();
   useEffect(() => {
-    api<Report>(`/api/report?period=${period}&start=${rangeStart}&end=${rangeEnd}`).then(setReport);
-  }, [period, rangeStart, rangeEnd]);
+    let alive = true;
+    api<Report>(`/api/report?period=${period}&start=${rangeStart}&end=${rangeEnd}`)
+      .then((r) => alive && setReport(r))
+      .catch(() => {}); // offline: keep what is on screen
+    return () => {
+      alive = false;
+    };
+  }, [period, rangeStart, rangeEnd, saved]);
 
   if (!report) return <div className="py-20 text-center text-[#94A3B8] animate-pulse">Loading analytics…</div>;
 

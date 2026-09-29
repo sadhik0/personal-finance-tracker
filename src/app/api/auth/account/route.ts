@@ -1,5 +1,6 @@
 import { connectToDatabase } from "@/backend/db/connect";
 import { Account, Category, ExpectedRule, Session, Settings, Transaction, User } from "@/backend/models";
+import { readJsonOrEmpty } from "@/backend/utils/validate";
 import { bad, ok, withUser } from "@/backend/utils/response";
 import { destroySession, verifyPassword } from "@/backend/services/auth.service";
 import { allow, tooMany } from "@/backend/services/rateLimit.service";
@@ -11,10 +12,10 @@ import { allow, tooMany } from "@/backend/services/rateLimit.service";
  * still exists and the request can simply be retried.
  */
 export async function DELETE(req: Request) {
-  return withUser(async (user) => {
+  return withUser(req, async (user) => {
     await connectToDatabase();
     if (!(await allow(`delacct:${user.id}`, 5, 900))) return tooMany();
-    const b = await req.json().catch(() => ({}));
+    const b = await readJsonOrEmpty(req);
     if (!verifyPassword(String(b.password ?? ""), user.passwordHash))
       return bad("Password is incorrect", 401);
 

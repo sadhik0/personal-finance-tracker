@@ -4,21 +4,63 @@
  * Plain TypeScript on purpose: no extra dependency, easy to test.
  */
 export class InputError extends Error {
-  constructor(message: string) {
+  status: number;
+  constructor(message: string, status = 400) {
     super(message);
     this.name = "InputError";
+    this.status = status;
   }
 }
+
+/** Largest JSON body any API route accepts. Real payloads are well under 5 KB. */
+export const MAX_BODY_BYTES = 50_000;
 
 const ID_RE = /^[a-f0-9]{24}$/i;
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const PERIOD_RE = /^\d{4}-(0[1-9]|1[0-2])$/;
 const CLIENT_ID_RE = /^[A-Za-z0-9_-]{1,64}$/;
 
-export async function readJson(req: Request): Promise<Record<string, unknown>> {
+/**
+ * Reads a JSON object body with a hard size cap. Two gates:
+ *  1. Content-Length header (cheap early reject), and
+ *  2. a streamed byte count while reading, because the header can be missing
+ *     (chunked uploads) or simply wrong.
+ */
+export async function readJson(
+  req: Request,
+  maxBytes: number = MAX_BODY_BYTES,
+): Promise<Record<string, unknown>> {
+  const tooBig = () => new InputError("Request body is too large", 413);
+  const declared = Number(req.headers.get("content-length"));
+  if (Number.isFinite(declared) && declared > maxBytes) throw tooBig();
+
+  let raw = "";
+  if (req.body) {
+    const reader = req.body.getReader();
+    const chunks: Uint8Array[] = [];
+    let total = 0;
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      total += value.byteLength;
+      if (total > maxBytes) {
+        await reader.cancel().catch(() => {});
+        throw tooBig();
+      }
+      chunks.push(value);
+    }
+    const all = new Uint8Array(total);
+    let offset = 0;
+    for (const c of chunks) {
+      all.set(c, offset);
+      offset += c.byteLength;
+    }
+    raw = new TextDecoder().decode(all);
+  }
+
   let body: unknown;
   try {
-    body = await req.json();
+    body = JSON.parse(raw);
   } catch {
     throw new InputError("Request body must be valid JSON");
   }
@@ -26,6 +68,11 @@ export async function readJson(req: Request): Promise<Record<string, unknown>> {
     throw new InputError("Request body must be a JSON object");
   return body as Record<string, unknown>;
 }
+
+/** Like readJson, but returns {} for a missing/bad/oversized body (the
+ * calling route then fails its own field checks). */
+export const readJsonOrEmpty = (req: Request) =>
+  readJson(req).catch((): Record<string, unknown> => ({}));
 
 /** Trimmed text. `clip` shortens too-long text instead of rejecting it
  * (used for descriptions, so an offline entry is never lost to a limit). */

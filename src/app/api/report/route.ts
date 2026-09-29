@@ -3,7 +3,7 @@ import { currentPeriod } from "@/backend/services/finance.service";
 import { buildReport } from "@/backend/services/report.service";
 
 export async function GET(req: Request) {
-  return withUser(async (user) => {
+  return withUser(req, async (user) => {
     const url = new URL(req.url);
     const period = url.searchParams.get("period") ?? currentPeriod();
     const months = Number(url.searchParams.get("months") ?? 6);

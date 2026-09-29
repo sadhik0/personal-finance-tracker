@@ -7,7 +7,7 @@ type Ctx = { params: Promise<{ id: string }> };
 
 /** body: { action: 'confirm'|'skip', amount?, date?, period } */
 export async function POST(req: Request, ctx: Ctx) {
-  return withUser(async (user) => {
+  return withUser(req, async (user) => {
     await connectToDatabase();
     const id = paramId((await ctx.params).id);
     const b = await readJson(req);

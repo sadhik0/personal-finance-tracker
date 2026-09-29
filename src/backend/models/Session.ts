@@ -11,6 +11,9 @@ const sessionSchema = new Schema({
   expiresAt: { type: Date, required: true },
 });
 
+// MongoDB deletes expired sessions itself (same trick as RateLimit).
+sessionSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
+
 applyJsonTransform(sessionSchema);
 
 export const Session = mongoose.models.Session ?? mongoose.model("Session", sessionSchema);

@@ -37,24 +37,39 @@ export default function DashboardPage() {
   const [rules, setRules] = useState<Rule[]>([]);
   const [openCat, setOpenCat] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
-    const [r, rl] = await Promise.all([
-      api<Report>(`/api/report?period=${period}`),
-      api<Rule[]>("/api/rules"),
-    ]);
-    setReport(r);
-    setRules(rl);
-  }, [period]);
+  const [offline, setOffline] = useState(false);
+  const [tick, setTick] = useState(0);
+  const load = useCallback(() => setTick((t) => t + 1), []);
 
   useEffect(() => {
-    load();
+    let alive = true;
+    const fetchAll = () =>
+      Promise.all([api<Report>(`/api/report?period=${period}`), api<Rule[]>("/api/rules")])
+        .then(([r, rl]) => {
+          if (!alive) return;
+          setReport(r);
+          setRules(rl);
+          setOffline(false);
+        })
+        .catch(() => {
+          // Offline / server hiccup: keep whatever is already on screen.
+          if (alive) setOffline(true);
+        });
+    void fetchAll();
     const h = () => load();
     window.addEventListener("tx-saved", h);
-    return () => window.removeEventListener("tx-saved", h);
-  }, [load]);
+    return () => {
+      alive = false;
+      window.removeEventListener("tx-saved", h);
+    };
+  }, [period, tick, load]);
 
   if (!report)
-    return <div className="py-20 text-center text-[#94A3B8] animate-pulse">Loading dashboard…</div>;
+    return (
+      <div className={`py-20 text-center text-[#94A3B8] ${offline ? "" : "animate-pulse"}`}>
+        {offline ? "Can't load the dashboard right now. It will refresh when you are back online." : "Loading dashboard…"}
+      </div>
+    );
 
   const k = report.kpi;
   const pending = rules.filter((r) => r.active && r.lastHandledPeriod !== period);
@@ -64,7 +79,10 @@ export default function DashboardPage() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl sm:text-3xl font-semibold">Dashboard</h1>
-          <p className="text-sm text-[#94A3B8]">{periodLabel(period)}</p>
+          <p className="text-sm text-[#94A3B8]">
+            {periodLabel(period)}
+            {offline ? " · offline, numbers may be out of date" : ""}
+          </p>
         </div>
         <div className="flex items-center gap-2">
           <button className="btn btn-ghost text-xs" onClick={() => setPeriod(shiftPeriod(period, -1))}>

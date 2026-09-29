@@ -63,7 +63,8 @@ export default function Shell({
     setQuick(false);
     setToast(msg);
     setTimeout(() => setToast(null), 2200);
-    router.refresh();
+    // router.refresh() fetches from the server: skip it offline (it blanks the page)
+    if (navigator.onLine) router.refresh();
     window.dispatchEvent(new CustomEvent("tx-saved"));
   }
 

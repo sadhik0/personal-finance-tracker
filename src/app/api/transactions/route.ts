@@ -5,6 +5,7 @@ import { TX_TYPES } from "@/backend/services/finance.service";
 import {
   clientIdOrNull,
   idOrNull,
+  InputError,
   isoDate,
   metaOrNull,
   oneOf,
@@ -16,7 +17,7 @@ import { ownedOrNull } from "@/backend/utils/ownership";
 import { validateTransactionAccountRoles } from "@/backend/utils/transactionRules";
 
 export async function GET(req: Request) {
-  return withUser(async (user) => {
+  return withUser(req, async (user) => {
     await connectToDatabase();
     const url = new URL(req.url);
     const from = url.searchParams.get("from");
@@ -28,7 +29,22 @@ export async function GET(req: Request) {
     const updatedSince = url.searchParams.get("updatedSince");
     const limit = Math.min(Math.max(Math.floor(Number(url.searchParams.get("limit"))) || 500, 1), 2000);
 
+    // Cursor paging (used by export/backup): "<updatedAt ISO>_<id>" of the last
+    // row already received. Rows come back oldest-updated first, so inserts
+    // made while paging can never shift a page or cause a double count.
+    const cursorRaw = url.searchParams.get("cursor");
+    const byUpdated = cursorRaw !== null || url.searchParams.get("order") === "updated";
+    const and: Record<string, unknown>[] = [];
+    if (cursorRaw) {
+      const cut = cursorRaw.lastIndexOf("_");
+      const at = new Date(cursorRaw.slice(0, cut));
+      const id = idOrNull(cursorRaw.slice(cut + 1), "cursor");
+      if (cut < 1 || !id || Number.isNaN(at.getTime())) throw new InputError("cursor is invalid");
+      and.push({ $or: [{ updatedAt: { $gt: at } }, { updatedAt: at, _id: { $gt: id } }] });
+    }
+
     const filter: Record<string, unknown> = { userId: user.id, deletedAt: null };
+    if (and.length) filter.$and = and;
     if (updatedSince) {
       const since = new Date(updatedSince);
       if (!Number.isNaN(since.getTime())) filter.updatedAt = { $gt: since };
@@ -48,14 +64,14 @@ export async function GET(req: Request) {
     }
 
     const rows = await Transaction.find(filter)
-      .sort({ date: -1, _id: -1 })
+      .sort(byUpdated ? { updatedAt: 1, _id: 1 } : { date: -1, _id: -1 })
       .limit(limit);
     return ok(rows);
   });
 }
 
 export async function POST(req: Request) {
-  return withUser(async (user) => {
+  return withUser(req, async (user) => {
     await connectToDatabase();
     const b = await readJson(req);
     const clientId = clientIdOrNull(b.clientId);

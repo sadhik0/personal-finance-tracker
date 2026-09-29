@@ -42,6 +42,7 @@ let flushing = false;
 export async function flushQueue() {
   if (flushing || typeof navigator !== "undefined" && !navigator.onLine) return;
   flushing = true;
+  let appliedAny = false;
   setStatus({ syncing: true, lastError: null });
   try {
     const items = await db.syncQueue.orderBy("createdAt").toArray();
@@ -49,6 +50,7 @@ export async function flushQueue() {
       try {
         await applyOne(item);
         await db.syncQueue.delete(item.id!);
+        appliedAny = true;
       } catch (err) {
         // fetch throws TypeError when offline/unreachable. A 429 (rate limited)
         // or 5xx (server hiccup) is also temporary: keep the item and retry later.
@@ -72,6 +74,9 @@ export async function flushQueue() {
     flushing = false;
     await refreshPendingCount();
     setStatus({ syncing: false });
+    // The server has the data only NOW (not when the form was saved), so tell
+    // the dashboard / transactions list to reload with the fresh numbers.
+    if (appliedAny && typeof window !== "undefined") window.dispatchEvent(new Event("tx-saved"));
   }
 }
 

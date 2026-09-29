@@ -1,10 +1,12 @@
 "use client";
 
 import { api, inr, periodLabel } from "./client";
+import { fetchAllTransactions } from "./fetchAll";
 import type { Report } from "@/frontend/components/ui";
 
 type Tx = {
   id: string;
+  updatedAt: string;
   date: string;
   type: string;
   amount: string;
@@ -17,7 +19,7 @@ type Tx = {
 export async function exportExcel(report: Report, period: string) {
   const XLSX = await import("xlsx");
   const [txs, cats, accs] = await Promise.all([
-    api<Tx[]>(`/api/transactions?from=${report.range.start}&to=${report.range.end}&limit=2000`),
+    fetchAllTransactions<Tx>({ from: report.range.start, to: report.range.end }),
     api<{ id: string; name: string }[]>("/api/categories"),
     api<{ id: string; name: string }[]>("/api/accounts"),
   ]);

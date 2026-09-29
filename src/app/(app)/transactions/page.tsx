@@ -27,24 +27,34 @@ export default function TransactionsPage() {
   const [editing, setEditing] = useState<Tx | null>(null);
   const [toast, setToast] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
-    const { from, to } = monthBounds(period);
-    const [t, a, c] = await Promise.all([
-      listTransactions({ from, to, type, q }) as Promise<Tx[]>,
-      listAccounts<Account>(),
-      listCategories<Category>(),
-    ]);
-    setRows(t);
-    setAccounts(a);
-    setCategories(c);
-  }, [period, type, q]);
+  const [tick, setTick] = useState(0);
+  const load = useCallback(() => setTick((t) => t + 1), []);
 
   useEffect(() => {
-    load();
+    let alive = true;
+    const fetchAll = () => {
+      const { from, to } = monthBounds(period);
+      return Promise.all([
+        listTransactions({ from, to, type, q }) as Promise<Tx[]>,
+        listAccounts<Account>(),
+        listCategories<Category>(),
+      ])
+        .then(([t, a, c]) => {
+          if (!alive) return;
+          setRows(t);
+          setAccounts(a);
+          setCategories(c);
+        })
+        .catch(() => {});
+    };
+    void fetchAll();
     const h = () => load();
     window.addEventListener("tx-saved", h);
-    return () => window.removeEventListener("tx-saved", h);
-  }, [load]);
+    return () => {
+      alive = false;
+      window.removeEventListener("tx-saved", h);
+    };
+  }, [period, type, q, tick, load]);
 
   const accName = useMemo(() => new Map(accounts.map((a) => [a.id, a.name])), [accounts]);
   const catName = useMemo(() => new Map(categories.map((c) => [c.id, c.name])), [categories]);

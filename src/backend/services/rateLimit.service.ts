@@ -1,6 +1,6 @@
 import { connectToDatabase } from "@/backend/db/connect";
 import { RateLimit } from "@/backend/models/RateLimit";
-import { bad } from "@/backend/utils/response";
+import { NextResponse } from "next/server";
 
 export function clientIp(req: Request) {
   const fwd = req.headers.get("x-forwarded-for");
@@ -33,4 +33,5 @@ export async function allow(key: string, max: number, windowSec: number): Promis
   }
 }
 
-export const tooMany = () => bad("Too many attempts. Please wait a few minutes and try again.", 429);
+export const tooMany = () =>
+  NextResponse.json({ error: "Too many attempts. Please wait a few minutes and try again." }, { status: 429 });

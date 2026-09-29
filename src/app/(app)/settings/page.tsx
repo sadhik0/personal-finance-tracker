@@ -41,22 +41,31 @@ export default function SettingsPage() {
   const [pwd, setPwd] = useState({ current: "", next: "" });
   const [newLoanRule, setNewLoanRule] = useState({ label: "", accountId: "", ratePct: "10", dayOfMonth: "1" });
 
-  const load = useCallback(async () => {
-    const [s, c, r, a] = await Promise.all([
+  const [tick, setTick] = useState(0);
+  const load = useCallback(() => setTick((t) => t + 1), []);
+
+  useEffect(() => {
+    let alive = true;
+    Promise.all([
       api<Settings>("/api/settings"),
       api<Cat[]>("/api/categories"),
       api<Rule[]>("/api/rules"),
       api<Acc[]>("/api/accounts"),
-    ]);
-    setSettings(s);
-    setCats(c);
-    setRules(r);
-    setAccounts(a);
-  }, []);
-
-  useEffect(() => {
-    load();
-  }, [load]);
+    ])
+      .then(([s, c, r, a]) => {
+        if (!alive) return;
+        setSettings(s);
+        setCats(c);
+        setRules(r);
+        setAccounts(a);
+      })
+      .catch(() => {
+        // offline: keep what is on screen
+      });
+    return () => {
+      alive = false;
+    };
+  }, [tick]);
 
   function flash(m: string) {
     setToast(m);

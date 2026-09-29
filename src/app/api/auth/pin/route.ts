@@ -1,5 +1,6 @@
 import { connectToDatabase } from "@/backend/db/connect";
 import { User } from "@/backend/models";
+import { readJson } from "@/backend/utils/validate";
 import { bad, ok, withUser } from "@/backend/utils/response";
 import { hashPassword, verifyPassword } from "@/backend/services/auth.service";
 import { allow, tooMany } from "@/backend/services/rateLimit.service";
@@ -10,9 +11,9 @@ import { allow, tooMany } from "@/backend/services/rateLimit.service";
  * is pushed here when set, and pulled down via /api/auth/me on login.
  */
 export async function POST(req: Request) {
-  return withUser(async (user) => {
+  return withUser(req, async (user) => {
     await connectToDatabase();
-    const b = await req.json();
+    const b = await readJson(req);
     const pin = String(b.pin ?? "");
     if (!/^\d{4,8}$/.test(pin)) return bad("PIN must be 4-8 digits");
     await User.updateOne({ _id: user.id }, { $set: { pinHash: hashPassword(pin) } });
@@ -20,8 +21,8 @@ export async function POST(req: Request) {
   });
 }
 
-export async function DELETE() {
-  return withUser(async (user) => {
+export async function DELETE(req: Request) {
+  return withUser(req, async (user) => {
     await connectToDatabase();
     await User.updateOne({ _id: user.id }, { $set: { pinHash: null } });
     return ok({ ok: true });
@@ -33,9 +34,9 @@ export async function DELETE() {
  * online. On success the client derives and caches its own local verifier
  * from that same PIN — the server's hash format never needs to travel. */
 export async function PUT(req: Request) {
-  return withUser(async (user) => {
+  return withUser(req, async (user) => {
     await connectToDatabase();
-    const b = await req.json();
+    const b = await readJson(req);
     if (!(await allow(`pin:${user.id}`, 5, 900))) return tooMany();
     if (!user.pinHash) return bad("No PIN set", 404);
     const okPin = verifyPassword(String(b.pin ?? ""), user.pinHash);

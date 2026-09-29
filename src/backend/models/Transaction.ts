@@ -29,6 +29,9 @@ const transactionSchema = new Schema({
 // Speeds up the common "my transactions in a date range" queries.
 transactionSchema.index({ userId: 1, deletedAt: 1, date: -1 });
 
+// Cursor pagination (export / backup): ordered by updatedAt, ties broken by _id.
+transactionSchema.index({ userId: 1, updatedAt: 1, _id: 1 });
+
 // Partial index: only rows that actually have a string clientId are
 // constrained, so normal online creates (no clientId) never collide.
 transactionSchema.index(

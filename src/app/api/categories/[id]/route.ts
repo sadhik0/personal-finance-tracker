@@ -8,7 +8,7 @@ const BUCKETS = ["needs", "wants", "savings", "none"] as const;
 const LIMIT_MODES = ["fixed", "percent"] as const;
 
 export async function PUT(req: Request, ctx: Ctx) {
-  return withUser(async (user) => {
+  return withUser(req, async (user) => {
     await connectToDatabase();
     const id = paramId((await ctx.params).id);
     const b = await readJson(req);
@@ -29,8 +29,8 @@ export async function PUT(req: Request, ctx: Ctx) {
   });
 }
 
-export async function DELETE(_req: Request, ctx: Ctx) {
-  return withUser(async (user) => {
+export async function DELETE(req: Request, ctx: Ctx) {
+  return withUser(req, async (user) => {
     await connectToDatabase();
     const id = paramId((await ctx.params).id);
     await Category.deleteOne({ _id: id, userId: user.id });

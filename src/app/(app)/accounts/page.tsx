@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useTxSaved } from "@/frontend/lib/useTxSaved";
 import { api, inr } from "@/frontend/lib/client";
 import { Card, Empty, Toast } from "@/frontend/components/ui";
 import { TYPES, type TxRecord } from "@/frontend/components/TxForm";
@@ -27,11 +28,26 @@ export default function AccountsPage() {
   const [confirmDelete, setConfirmDelete] = useState<Acc | null>(null);
   const [deleteBusy, setDeleteBusy] = useState(false);
 
-  const load = useCallback(async () => setAccounts(await api<Acc[]>("/api/accounts")), []);
+  const load = useCallback(async () => {
+    try {
+      setAccounts(await api<Acc[]>("/api/accounts"));
+    } catch {
+      /* offline: keep what is on screen */
+    }
+  }, []);
+  const saved = useTxSaved();
   useEffect(() => {
     const timer = window.setTimeout(() => void load(), 0);
     return () => window.clearTimeout(timer);
-  }, [load]);
+  }, [load, saved]);
+
+  // keep an opened account's history fresh too
+  useEffect(() => {
+    if (!open) return;
+    api<(TxRecord & { id: string })[]>(`/api/transactions?accountId=${open}&limit=50`)
+      .then(setHistory)
+      .catch(() => {});
+  }, [open, saved]);
 
   async function openAccount(id: string) {
     if (open === id) return setOpen(null);

@@ -6,8 +6,8 @@ import { num, oneOf, readJson, text } from "@/backend/utils/validate";
 
 const ACCOUNT_KINDS = ["bank", "cash", "investment", "pf", "loan"] as const;
 
-export async function GET() {
-  return withUser(async (user) => {
+export async function GET(req: Request) {
+  return withUser(req, async (user) => {
     await connectToDatabase();
     const accs = await Account.find({ userId: user.id }).sort({ sortOrder: 1, _id: 1 });
     const txDocs = await Transaction.find({ userId: user.id, deletedAt: null });
@@ -19,7 +19,7 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
-  return withUser(async (user) => {
+  return withUser(req, async (user) => {
     await connectToDatabase();
     const b = await readJson(req);
     const row = await Account.create({

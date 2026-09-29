@@ -3,15 +3,15 @@
 import { useEffect, useRef, useState } from "react";
 import { Card } from "./ui";
 import db from "@/frontend/lib/db";
-import { api } from "@/frontend/lib/client";
+import { fetchAllTransactions } from "@/frontend/lib/fetchAll";
 import { createTransaction, listAccounts, listCategories } from "@/frontend/lib/offlineApi";
 import { TYPES } from "./TxForm";
 
 const FORMAT = "finance-tracker-backup";
-const LIMIT = 2000; // same cap the transactions API enforces
 
 type BackupTx = {
   id: string;
+  updatedAt: string;
   type: string;
   amount: number;
   date: string;
@@ -38,13 +38,14 @@ export default function BackupCard() {
     try {
       let txs: BackupTx[];
       if (navigator.onLine) {
-        txs = await api<BackupTx[]>(`/api/transactions?limit=${LIMIT}`);
+        txs = await fetchAllTransactions<BackupTx>();
       } else {
         const rows = await db.transactions.toArray();
         txs = rows
           .filter((r) => !r.deletedAt)
           .map((r) => ({
             id: r.serverId ?? r.clientId,
+            updatedAt: r.updatedAt,
             type: r.type,
             amount: r.amount,
             date: r.date,
@@ -69,11 +70,7 @@ export default function BackupCard() {
       const now = new Date().toISOString();
       await db.settings.put({ key: "lastBackupAt", value: now });
       setLast(now);
-      setMsg(
-        txs.length >= LIMIT
-          ? `Exported the newest ${LIMIT} transactions (export limit).`
-          : `Exported ${txs.length} transactions.`,
-      );
+      setMsg(`Exported ${txs.length} transactions.`);
     } catch (e) {
       setMsg(e instanceof Error ? e.message : "Export failed");
     } finally {
@@ -95,7 +92,7 @@ export default function BackupCard() {
       if (data.format !== FORMAT || !Array.isArray(data.transactions)) return setMsg("Not a Finance Tracker backup file.");
 
       const [existing, accounts, categories] = await Promise.all([
-        api<{ id: string }[]>(`/api/transactions?limit=${LIMIT}`),
+        fetchAllTransactions<{ id: string; updatedAt: string }>(),
         listAccounts<{ id: string }>(),
         listCategories<{ id: string }>(),
       ]);

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useTxSaved } from "@/frontend/lib/useTxSaved";
 import { api, currentPeriod, inr, periodLabel } from "@/frontend/lib/client";
 import { Card, Empty, Toast, type Report } from "@/frontend/components/ui";
 import { exportExcel, exportPDF } from "@/frontend/lib/export";
@@ -13,9 +14,16 @@ export default function StatementsPage() {
   const [report, setReport] = useState<Report | null>(null);
   const [toast, setToast] = useState<string | null>(null);
 
+  const saved = useTxSaved();
   useEffect(() => {
-    api<Report>(`/api/report?period=${period}`).then(setReport);
-  }, [period]);
+    let alive = true;
+    api<Report>(`/api/report?period=${period}`)
+      .then((r) => alive && setReport(r))
+      .catch(() => {}); // offline: keep what is on screen
+    return () => {
+      alive = false;
+    };
+  }, [period, saved]);
 
   if (!report) return <div className="py-20 text-center text-[#94A3B8] animate-pulse">Loading statements…</div>;
   const st = report.statements;
