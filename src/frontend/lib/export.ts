@@ -16,7 +16,12 @@ type Tx = {
   toAccountId: string | null;
 };
 
-export async function exportExcel(report: Report, period: string) {
+/** Title/label for the period the report covers, e.g. "Q3 2026 (Jul–Sep)" or "September 2026". */
+const reportTitle = (report: Report) => report.title ?? periodLabel(report.period);
+const fileSlug = (report: Report) =>
+  (report.label ?? report.period).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+
+export async function exportExcel(report: Report) {
   const XLSX = await import("xlsx");
   const [txs, cats, accs] = await Promise.all([
     fetchAllTransactions<Tx>({ from: report.range.start, to: report.range.end }),
@@ -29,6 +34,28 @@ export async function exportExcel(report: Report, period: string) {
   const wb = XLSX.utils.book_new();
   const add = (name: string, rows: unknown[]) =>
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows), name.slice(0, 31));
+
+  const k = report.kpi;
+  XLSX.utils.book_append_sheet(
+    wb,
+    XLSX.utils.aoa_to_sheet([
+      [`Personal Financial Analysis — ${reportTitle(report)}`],
+      [`${report.range.start} to ${report.range.end}`],
+      [],
+      ["Income (salary & other)", k.income],
+      ["Bank interest", k.interest],
+      ["Expenses", k.expense],
+      ["Investments", k.investment],
+      ["Loan repayment", k.loanPayment],
+      ["Family support received", k.familyIn],
+      ["Family support given", k.familyOut],
+      ["Savings", k.savings],
+      ["Net cash flow", k.netCashFlow],
+      ["Net position", report.balanceSheet.net],
+      ["Budget plan", report.budget.frameworkLabel],
+    ]),
+    "Overview",
+  );
 
   add(
     "Transactions",
@@ -51,40 +78,63 @@ export async function exportExcel(report: Report, period: string) {
       ...c.children.map((ch) => ({ Category: c.name, Subcategory: ch.name, Amount: ch.total })),
     ]),
   );
+  add("Budget Framework", [
+    ...report.budget.buckets.map((b) => ({
+      Bucket: b.label,
+      "Plan %": b.pct,
+      Target: Math.round(b.target),
+      Actual: Math.round(b.actual),
+      [b.kind === "goal" ? "Achieved %" : "Used %"]: Math.round(b.progressPct),
+    })),
+    ...(report.budget.base === 0 ? [{ Note: "No salary recorded in this period" }] : []),
+  ]);
   add(
-    "Budget vs Actual",
+    "Category Limits",
     report.limits.length
       ? report.limits.map((l) => ({ Category: l.name, Limit: l.limit, Spent: l.spent, "Used %": Math.round(l.pct) }))
       : [{ Note: "No personal limits configured yet" }],
   );
-  add("Monthly Summary", report.trend);
   add(
-    "Family Support",
-    report.trend.map((t) => ({
-      Month: t.period,
-      Received: t.familyIn,
-      Given: t.familyOut,
-      Net: t.familyIn - t.familyOut,
+    "Monthly Summary",
+    report.monthly.map((m) => ({
+      Month: m.period,
+      Income: m.income + m.interest,
+      Expenses: m.expense,
+      Investments: m.investment,
+      "Loan repayment": m.loanPayment,
+      "Family given": m.familyOut,
+      "Family received": m.familyIn,
+      Savings: m.savings,
+      "Net cash flow": m.net,
     })),
   );
-  add("Investments", report.trend.map((t) => ({ Month: t.period, Contribution: t.investment })));
+  add(
+    "Family Support",
+    report.monthly.map((m) => ({
+      Month: m.period,
+      Received: m.familyIn,
+      Given: m.familyOut,
+      Net: m.familyIn - m.familyOut,
+    })),
+  );
+  add("Investments", report.monthly.map((m) => ({ Month: m.period, Contribution: m.investment })));
   add("Accounts", report.accounts.map((a) => ({ Account: a.name, Kind: a.kind, Balance: a.balance })));
-  add("Loan", report.trend.map((t) => ({ Month: t.period, Payment: t.loanPayment })));
+  add("Loan", report.monthly.map((m) => ({ Month: m.period, Payment: m.loanPayment })));
 
-  XLSX.writeFile(wb, `finance-report-${period}.xlsx`);
+  XLSX.writeFile(wb, `personal-financial-analysis-${fileSlug(report)}.xlsx`);
 }
 
-export async function exportPDF(report: Report, period: string, name: string) {
+export async function exportPDF(report: Report, name: string) {
   const { jsPDF } = await import("jspdf");
   const autoTable = (await import("jspdf-autotable")).default;
   const doc = new jsPDF();
   const k = report.kpi;
 
   doc.setFontSize(18);
-  doc.text("Personal Financial Report", 14, 20);
+  doc.text(`Personal Financial Statement — ${reportTitle(report)}`, 14, 20);
   doc.setFontSize(11);
   doc.setTextColor(120);
-  doc.text(`${periodLabel(period)} · ${name}`, 14, 27);
+  doc.text(`${report.range.start} to ${report.range.end} · ${name}`, 14, 27);
   doc.setTextColor(0);
 
   autoTable(doc, {
@@ -109,15 +159,56 @@ export async function exportPDF(report: Report, period: string, name: string) {
 
   autoTable(doc, {
     startY: y(),
-    head: [["Budget (50/30/20)", "Target", "Actual", "Actual %"]],
-    body: (["needs", "wants", "savings"] as const).map((b) => [
-      b.toUpperCase(),
-      inr(report.budget.targets[b]),
-      inr(report.budget.actual[b]),
-      `${report.budget.actualPct[b].toFixed(1)}%`,
+    head: [[`Budget (${report.budget.frameworkLabel})`, "Plan %", "Target", "Actual", "Used / achieved"]],
+    body: report.budget.buckets.map((b) => [
+      b.label,
+      `${b.pct}%`,
+      inr(b.target),
+      inr(b.actual),
+      `${b.progressPct.toFixed(0)}%`,
     ]),
     headStyles: { fillColor: [17, 24, 39] },
   });
+
+  if (report.monthly.length > 1) {
+    autoTable(doc, {
+      startY: y(),
+      head: [["Month", "Income", "Expenses", "Investments", "Loan", "Savings"]],
+      body: report.monthly.map((m) => [
+        m.period,
+        inr(m.income + m.interest),
+        inr(m.expense),
+        inr(m.investment),
+        inr(m.loanPayment),
+        inr(m.savings),
+      ]),
+      foot: [
+        [
+          `${report.label ?? "Total"} total`,
+          inr(k.income + k.interest),
+          inr(k.expense),
+          inr(k.investment),
+          inr(k.loanPayment),
+          inr(k.savings),
+        ],
+      ],
+      headStyles: { fillColor: [17, 24, 39] },
+      footStyles: { fillColor: [226, 232, 240], textColor: 20 },
+    });
+    const hs = report.summary.highestSpendingMonth;
+    const ls = report.summary.lowestSpendingMonth;
+    autoTable(doc, {
+      startY: y(),
+      head: [["Period summary", "Value"]],
+      body: [
+        ["Average monthly spending", inr(report.summary.avgMonthlySpending)],
+        ["Average monthly savings", inr(report.summary.avgMonthlySavings)],
+        ["Highest spending month", hs ? `${hs.period} · ${inr(hs.amount)}` : "—"],
+        ["Lowest spending month", ls ? `${ls.period} · ${inr(ls.amount)}` : "—"],
+      ],
+      headStyles: { fillColor: [17, 24, 39] },
+    });
+  }
 
   autoTable(doc, {
     startY: y(),
@@ -164,5 +255,5 @@ export async function exportPDF(report: Report, period: string, name: string) {
     });
   }
 
-  doc.save(`finance-report-${period}.pdf`);
+  doc.save(`personal-financial-statement-${fileSlug(report)}.pdf`);
 }

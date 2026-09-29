@@ -1,5 +1,6 @@
 "use client";
 
+import { clearApiCache } from "@/frontend/lib/apiCache";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
@@ -77,6 +78,7 @@ export default function Shell({
       return;
     }
     await clearLocalData();
+    clearApiCache();
     router.push("/");
     router.refresh();
   }

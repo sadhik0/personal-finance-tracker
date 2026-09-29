@@ -13,12 +13,21 @@ import {
   summarize,
   type Tx,
 } from "./finance.service";
+import { computeBudget, legacyPlan, type Framework, type PlanEntry } from "@/shared/budget";
 
+const lastDay = (month: string) => monthRange(month).end;
+
+/**
+ * @param range   an explicit date range (quarter / half-year / year / custom)
+ * @param opts    prevRange: the range to compare against (defaults to an equally long range before)
+ *                kind/label: period type and display label, echoed back for the UI and exports
+ */
 export async function buildReport(
   userId: string,
   period: string,
   monthsBack = 6,
   range?: { start: string; end: string },
+  opts: { prevRange?: { start: string; end: string }; kind?: string; label?: string; title?: string } = {},
 ) {
   await connectToDatabase();
   const custom = !!(range && range.start && range.end && range.start <= range.end);
@@ -35,6 +44,10 @@ export async function buildReport(
   const prev = summarize(
     custom
       ? (() => {
+          if (opts.prevRange) {
+            const pr = opts.prevRange;
+            return allTx.filter((t) => t.date >= pr.start && t.date <= pr.end);
+          }
           const spanDays = daysBetween(start, end) + 1;
           const prevEnd = addDays(start, -1);
           const prevStart = addDays(start, -spanDays);
@@ -62,36 +75,97 @@ export async function buildReport(
     .reduce((acc, a) => acc + Math.abs(Math.min(a.balance, 0)), 0);
 
   const buckets = bucketTotals(periodTx, ctx.categories);
-  const base = s.income; // salary-based budget base (excludes family + interest)
   const st = ctx.settings;
-  const plan = {
-    needsPct: num(st?.customNeedsPct ?? st?.needsPct ?? 50),
-    wantsPct: num(st?.customWantsPct ?? st?.wantsPct ?? 30),
-    savingsPct: num(st?.customSavingsPct ?? st?.savingsPct ?? 20),
-    isCustom: st?.customNeedsPct != null,
-  };
+
+  // Every month the period touches, with that month's salary base. The budget
+  // is worked out month by month, because the active plan can change between
+  // months (see src/shared/budget.ts).
+  const periodMonths: string[] = [];
+  for (let m = start.slice(0, 7); m <= end.slice(0, 7); m = shiftPeriod(m, 1)) periodMonths.push(m);
+  const monthTx = new Map<string, Tx[]>();
+  for (const m of periodMonths) monthTx.set(m, []);
+  for (const t of periodTx) monthTx.get(t.date.slice(0, 7))?.push(t);
+  const monthSummaries = periodMonths.map((m) => ({ month: m, s: summarize(monthTx.get(m) ?? []), n: monthTx.get(m)?.length ?? 0 }));
+
+  const base = s.income; // salary-based budget base (excludes family + interest)
   const savingsForBudget = s.income - s.expense - s.familyOut - s.loanPayment;
-  const budget = {
-    base,
-    benchmark: { needs: 50, wants: 30, savings: 20 },
-    plan,
-    targets: {
-      needs: (base * plan.needsPct) / 100,
-      wants: (base * plan.wantsPct) / 100,
-      savings: (base * plan.savingsPct) / 100,
-    },
+  const history: PlanEntry[] = ((st?.planHistory ?? []) as Record<string, unknown>[]).map((e) => ({
+    from: String(e.from),
+    framework: e.framework as Framework,
+    allocation: { needs: num(e.needs), wants: num(e.wants), loan: num(e.loan), savings: num(e.savings) },
+  }));
+  const computed = computeBudget({
+    months: monthSummaries.map((m) => ({ month: m.month, base: m.s.income })),
+    history,
+    legacy: legacyPlan(st),
     actual: {
       needs: buckets.needs,
       wants: buckets.wants,
+      loan: s.loanPayment,
       savings: Math.max(savingsForBudget, 0),
+    },
+    savingsRaw: savingsForBudget,
+  });
+  const pctOfKey = (k: "needs" | "wants" | "loan" | "savings") =>
+    computed.buckets.find((x) => x.key === k)?.pct ?? 0;
+  const budget = {
+    ...computed,
+    // Kept for older callers: percentages of the three classic buckets.
+    benchmark: { needs: 50, wants: 30, savings: 20 },
+    plan: {
+      needsPct: pctOfKey("needs"),
+      wantsPct: pctOfKey("wants"),
+      loanPct: pctOfKey("loan"),
+      savingsPct: pctOfKey("savings"),
+      framework: computed.framework,
+      isCustom: computed.framework === "custom",
     },
     actualPct: base
       ? {
           needs: (buckets.needs / base) * 100,
           wants: (buckets.wants / base) * 100,
+          loan: (s.loanPayment / base) * 100,
           savings: (savingsForBudget / base) * 100,
         }
-      : { needs: 0, wants: 0, savings: 0 },
+      : { needs: 0, wants: 0, loan: 0, savings: 0 },
+  };
+
+  // Month-by-month breakdown + summary (drives quarterly / half-yearly / yearly statements).
+  const today = new Date().toISOString().slice(0, 10);
+  const monthly = monthSummaries.map(({ month, s: ms, n }) => ({
+    period: month,
+    hasData: n > 0,
+    elapsed: month + "-01" <= today,
+    income: ms.income,
+    interest: ms.interest,
+    expense: ms.expense,
+    investment: ms.investment,
+    loanPayment: ms.loanPayment,
+    familyIn: ms.familyIn,
+    familyOut: ms.familyOut,
+    savings: ms.income - ms.expense - ms.familyOut - ms.loanPayment,
+    net: ms.netCashFlow,
+  }));
+  // Averages and highest/lowest only count months that have started AND have data,
+  // so future or pre-app months never show up as "lowest spending month".
+  const active = monthly.filter((m) => m.elapsed && m.hasData);
+  const pick = (better: (a: number, b: number) => boolean) =>
+    active.reduce<{ period: string; amount: number } | null>(
+      (best, m) => (best === null || better(m.expense, best.amount) ? { period: m.period, amount: m.expense } : best),
+      null,
+    );
+  const summary = {
+    months: monthly.length,
+    activeMonths: active.length,
+    avgMonthlySpending: active.length ? active.reduce((a, m) => a + m.expense, 0) / active.length : 0,
+    avgMonthlySavings: active.length ? active.reduce((a, m) => a + m.savings, 0) / active.length : 0,
+    avgMonthlyIncome: active.length ? active.reduce((a, m) => a + m.income + m.interest, 0) / active.length : 0,
+    highestSpendingMonth: pick((a, b) => a > b),
+    lowestSpendingMonth: pick((a, b) => a < b),
+    highestInvestmentMonth: active.reduce<{ period: string; amount: number } | null>(
+      (best, m) => (best === null || m.investment > best.amount ? { period: m.period, amount: m.investment } : best),
+      null,
+    ),
   };
 
   const categories = categorySpending(periodTx, ctx.categories);
@@ -211,10 +285,10 @@ export async function buildReport(
       level: "info",
       text: "Salary not configured for this period. Confirm your salary to activate budget analysis.",
     });
-  if (base > 0 && budget.actualPct.savings >= plan.savingsPct)
+  if (base > 0 && budget.plan.savingsPct > 0 && budget.actualPct.savings >= budget.plan.savingsPct)
     alerts.push({
       level: "success",
-      text: `Your savings rate is ${budget.actualPct.savings.toFixed(1)}% — at or above your ${plan.savingsPct}% benchmark.`,
+      text: `Your savings rate is ${budget.actualPct.savings.toFixed(1)}% — at or above your ${budget.plan.savingsPct}% target.`,
     });
   if (s.familyOut > prev.familyOut && prev.familyOut > 0)
     alerts.push({
@@ -224,7 +298,12 @@ export async function buildReport(
 
   return {
     period,
+    kind: opts.kind ?? "month",
+    label: opts.label ?? null,
+    title: opts.title ?? null,
     range: { start, end, custom, trendGranularity },
+    monthly,
+    summary,
     kpi: {
       income: s.income,
       interest: s.interest,

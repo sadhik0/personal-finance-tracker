@@ -23,7 +23,9 @@ export async function withUser(
 ) {
   const blocked = requireSameOrigin(req);
   if (blocked) return blocked;
+  const t0 = Date.now();
   const user = await getCurrentUser();
+  const tAuth = Date.now();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   try {
     // /api/rules/<id>/confirm and /api/rules/<id2>/confirm share one bucket
@@ -32,7 +34,16 @@ export async function withUser(
     const key = `api:${write ? "w" : "r"}:${route}:${user.id}:${clientIp(req)}`;
     if (!(await allow(key, write ? API_LIMIT_WRITE : API_LIMIT_READ, 60)))
       return NextResponse.json({ error: "Too many requests. Please slow down." }, { status: 429 });
-    return await fn(user);
+    const tRate = Date.now();
+    const res = await fn(user);
+    const tEnd = Date.now();
+    // Shows up in the browser's Network tab > Timing. Tells us where the time
+    // goes (auth lookup, rate-limit check, or the route's own work) before we optimise anything.
+    res.headers.set(
+      "Server-Timing",
+      `auth;dur=${tAuth - t0}, ratelimit;dur=${tRate - tAuth}, handler;dur=${tEnd - tRate}, total;dur=${tEnd - t0}`,
+    );
+    return res;
   } catch (e) {
     // Our own validation messages are safe to show. Anything else (database
     // errors, bugs) is logged on the server and hidden from the client.

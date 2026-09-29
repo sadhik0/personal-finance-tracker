@@ -52,6 +52,53 @@ body {
   animation: fadeUp 0.35s ease both;
 }
 
+/* Page transition: a quick, subtle fade/slide when moving between screens. */
+@keyframes pageIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.animate-pagein {
+  animation: pageIn 0.2s ease-out both;
+}
+
+/* Loading placeholders: one soft shimmer sweeping across each block. */
+@keyframes shimmer {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
+.skeleton {
+  border-radius: 10px;
+  background: linear-gradient(90deg, var(--color-elevated) 25%, #21304a 50%, var(--color-elevated) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.6s linear infinite;
+}
+
+/* Data refreshing behind the numbers already on screen. */
+.refreshing {
+  opacity: 0.6;
+  transition: opacity 0.2s ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-pagein,
+  .animate-fadeup {
+    animation: none;
+  }
+  .skeleton {
+    animation: none;
+  }
+}
+
 @keyframes pulseGlow {
   0%,
   100% {
