@@ -7,7 +7,7 @@ import { allow, tooMany } from "@/backend/services/rateLimit.service";
 import { readJson } from "@/backend/utils/validate";
 
 export async function POST(req: Request) {
-  return withUser(async (user) => {
+  return withUser(req, async (user) => {
     await connectToDatabase();
     const b = await readJson(req);
     if (!(await allow(`pwd:${user.id}`, 5, 900))) return tooMany();

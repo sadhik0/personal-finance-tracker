@@ -3,20 +3,16 @@
 import { useCallback, useEffect, useState } from "react";
 import { api } from "@/frontend/lib/client";
 import { Card, Toast } from "@/frontend/components/ui";
+import BudgetFrameworkCard, { type PlanSettings } from "@/frontend/components/BudgetFrameworkCard";
+import { ChartCardSkeleton, PageHeaderSkeleton } from "@/frontend/components/Skeleton";
 import AppLockCard from "@/frontend/components/AppLockCard";
 import BackupCard from "@/frontend/components/BackupCard";
+import DeleteAllTransactionsButton from "@/frontend/components/DeleteAllTransactionsButton";
 import DeleteAccountCard from "@/frontend/components/DeleteAccountCard";
 import db from "@/frontend/lib/db";
 import type { Category } from "@/frontend/components/TxForm";
 
-type Settings = {
-  needsPct: string;
-  wantsPct: string;
-  savingsPct: string;
-  customNeedsPct: string | null;
-  customWantsPct: string | null;
-  customSavingsPct: string | null;
-};
+type Settings = PlanSettings;
 type Rule = {
   id: string;
   kind: string;
@@ -41,29 +37,46 @@ export default function SettingsPage() {
   const [pwd, setPwd] = useState({ current: "", next: "" });
   const [newLoanRule, setNewLoanRule] = useState({ label: "", accountId: "", ratePct: "10", dayOfMonth: "1" });
 
-  const load = useCallback(async () => {
-    const [s, c, r, a] = await Promise.all([
+  const [tick, setTick] = useState(0);
+  const load = useCallback(() => setTick((t) => t + 1), []);
+
+  useEffect(() => {
+    let alive = true;
+    Promise.all([
       api<Settings>("/api/settings"),
       api<Cat[]>("/api/categories"),
       api<Rule[]>("/api/rules"),
       api<Acc[]>("/api/accounts"),
-    ]);
-    setSettings(s);
-    setCats(c);
-    setRules(r);
-    setAccounts(a);
-  }, []);
-
-  useEffect(() => {
-    load();
-  }, [load]);
+    ])
+      .then(([s, c, r, a]) => {
+        if (!alive) return;
+        setSettings(s);
+        setCats(c);
+        setRules(r);
+        setAccounts(a);
+      })
+      .catch(() => {
+        // offline: keep what is on screen
+      });
+    return () => {
+      alive = false;
+    };
+  }, [tick]);
 
   function flash(m: string) {
     setToast(m);
     setTimeout(() => setToast(null), 1800);
   }
 
-  if (!settings) return <div className="py-20 text-center text-[#94A3B8] animate-pulse">Loading settings…</div>;
+  if (!settings)
+    return (
+      <div className="space-y-4" role="status" aria-label="Loading settings">
+        <PageHeaderSkeleton />
+        <ChartCardSkeleton height="h-32" />
+        <ChartCardSkeleton height="h-40" />
+        <ChartCardSkeleton height="h-40" />
+      </div>
+    );
 
   const parents = cats.filter((c) => !c.parentId);
 
@@ -74,36 +87,13 @@ export default function SettingsPage() {
         <p className="text-sm text-[#94A3B8]">Budget, categories, limits, salary, security and data</p>
       </div>
 
-      <Card title="Budget framework">
-        <p className="mb-3 text-xs text-[#94A3B8]">
-          50/30/20 is the default benchmark. Set a personal plan once you know your actual salary —
-          leave the custom fields empty to keep using the benchmark.
-        </p>
-        <div className="grid sm:grid-cols-3 gap-3">
-          {(["needs", "wants", "savings"] as const).map((k) => (
-            <div key={k}>
-              <label className="label capitalize">
-                {k} — benchmark {settings[`${k}Pct` as const]}%
-              </label>
-              <input
-                className="input"
-                placeholder="Custom %"
-                defaultValue={settings[`custom${k[0].toUpperCase()}${k.slice(1)}Pct` as keyof Settings] ?? ""}
-                onBlur={async (e) => {
-                  await api("/api/settings", {
-                    method: "PUT",
-                    json: {
-                      [`custom${k[0].toUpperCase()}${k.slice(1)}Pct`]: e.target.value === "" ? null : e.target.value,
-                    },
-                  });
-                  flash("Budget plan updated");
-                  load();
-                }}
-              />
-            </div>
-          ))}
-        </div>
-      </Card>
+      <BudgetFrameworkCard
+        settings={settings}
+        onSaved={(m) => {
+          flash(m);
+          load();
+        }}
+      />
 
       <Card title="Salary & interest expectations">
         <div className="space-y-4">
@@ -540,18 +530,7 @@ export default function SettingsPage() {
 
         <Card title="Data">
           <div className="space-y-3">
-            <button
-              className="btn btn-ghost w-full text-[#EF4444]"
-              onClick={async () => {
-                if (!window.confirm("Delete ALL your transactions? This cannot be undone.")) return;
-                await api("/api/data", { method: "DELETE" });
-                await db.transactions.clear();
-                await db.syncQueue.clear();
-                flash("All transactions deleted");
-              }}
-            >
-              Delete all transactions
-            </button>
+            <DeleteAllTransactionsButton onDone={flash} />
             <p className="text-xs text-[#94A3B8]">
               Excel and PDF exports are available on the Statements page.
             </p>

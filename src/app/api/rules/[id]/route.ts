@@ -7,7 +7,7 @@ import { mustOwn } from "@/backend/utils/ownership";
 type Ctx = { params: Promise<{ id: string }> };
 
 export async function PUT(req: Request, ctx: Ctx) {
-  return withUser(async (user) => {
+  return withUser(req, async (user) => {
     await connectToDatabase();
     const id = paramId((await ctx.params).id);
     const b = await readJson(req);
@@ -15,6 +15,8 @@ export async function PUT(req: Request, ctx: Ctx) {
     if (b.label !== undefined) patch.label = text(b.label, "Label", { max: 100 });
     if (b.amount !== undefined)
       patch.amount = b.amount === null || b.amount === "" ? null : num(b.amount, "Amount", { min: 0 });
+    if (b.ratePct !== undefined)
+      patch.ratePct = b.ratePct === null || b.ratePct === "" ? null : num(b.ratePct, "Rate", { min: 0, max: 1000 });
     if (b.dayOfMonth !== undefined)
       patch.dayOfMonth = Math.round(num(b.dayOfMonth, "Day of month", { min: 1, max: 31 }));
     if (b.accountId !== undefined)
@@ -31,8 +33,8 @@ export async function PUT(req: Request, ctx: Ctx) {
   });
 }
 
-export async function DELETE(_req: Request, ctx: Ctx) {
-  return withUser(async (user) => {
+export async function DELETE(req: Request, ctx: Ctx) {
+  return withUser(req, async (user) => {
     await connectToDatabase();
     const id = paramId((await ctx.params).id);
     await ExpectedRule.deleteOne({ _id: id, userId: user.id });

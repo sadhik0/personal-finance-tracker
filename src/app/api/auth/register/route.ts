@@ -1,7 +1,9 @@
+import { requireSameOrigin } from "@/backend/utils/sameOrigin";
 import { connectToDatabase } from "@/backend/db/connect";
 import { User } from "@/backend/models";
 import { MIN_PASSWORD, createSession, hashPassword } from "@/backend/services/auth.service";
 import { createHash, timingSafeEqual } from "crypto";
+import { readJsonOrEmpty } from "@/backend/utils/validate";
 import { bad, ok } from "@/backend/utils/response";
 import { allow, clientIp, tooMany } from "@/backend/services/rateLimit.service";
 
@@ -13,8 +15,10 @@ function sameSecret(a: string, b: string) {
 import { seedDefaults } from "@/backend/services/seed.service";
 
 export async function POST(req: Request) {
+  const blocked = requireSameOrigin(req);
+  if (blocked) return blocked;
   await connectToDatabase();
-  const body = await req.json().catch(() => ({}));
+  const body = await readJsonOrEmpty(req);
   // Counted before the code is checked, so guessing the code is throttled too.
   if (!(await allow(`register:${clientIp(req)}`, 5, 3600))) return tooMany();
   const inviteCode = process.env.REGISTRATION_CODE;

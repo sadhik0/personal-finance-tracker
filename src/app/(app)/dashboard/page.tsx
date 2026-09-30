@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import {
   Area,
   AreaChart,
@@ -17,6 +17,9 @@ import {
   YAxis,
 } from "recharts";
 import { api, currentPeriod, inr, periodLabel, shiftPeriod, shortPeriod, today } from "@/frontend/lib/client";
+import { useApiResource } from "@/frontend/lib/apiCache";
+import { useTxSaved } from "@/frontend/lib/useTxSaved";
+import { DashboardSkeleton } from "@/frontend/components/Skeleton";
 import { Bar, Card, CHART_COLORS, Empty, KPI, fmtTip, TOOLTIP_STYLE, type Report } from "@/frontend/components/ui";
 
 type Rule = {
@@ -33,38 +36,43 @@ type Rule = {
 
 export default function DashboardPage() {
   const [period, setPeriod] = useState(currentPeriod());
-  const [report, setReport] = useState<Report | null>(null);
-  const [rules, setRules] = useState<Rule[]>([]);
   const [openCat, setOpenCat] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
-    const [r, rl] = await Promise.all([
-      api<Report>(`/api/report?period=${period}`),
-      api<Rule[]>("/api/rules"),
-    ]);
-    setReport(r);
-    setRules(rl);
-  }, [period]);
+  // Reload when a transaction is saved / finished syncing, or after confirming a rule.
+  const saved = useTxSaved();
+  const [manual, setManual] = useState(0);
+  const load = useCallback(() => setManual((t) => t + 1), []);
+  const reloadKey = saved + manual;
 
-  useEffect(() => {
-    load();
-    const h = () => load();
-    window.addEventListener("tx-saved", h);
-    return () => window.removeEventListener("tx-saved", h);
-  }, [load]);
+  const { data: report, loading, error: offline } = useApiResource<Report>(`/api/report?period=${period}`, reloadKey);
+  const { data: rulesData } = useApiResource<Rule[]>("/api/rules", reloadKey);
+  const rules = rulesData ?? [];
 
   if (!report)
-    return <div className="py-20 text-center text-[#94A3B8] animate-pulse">Loading dashboard…</div>;
+    return offline ? (
+      <div className="py-20 text-center text-[#94A3B8]">
+        Can&apos;t load the dashboard right now. It will refresh when you are back online.
+      </div>
+    ) : (
+      <DashboardSkeleton />
+    );
 
   const k = report.kpi;
-  const pending = rules.filter((r) => r.active && r.lastHandledPeriod !== period);
+  // Recommendations exist for this month and next month only (no entries further in the future).
+  const pending =
+    period <= shiftPeriod(currentPeriod(), 1)
+      ? rules.filter((r) => r.active && r.lastHandledPeriod !== period)
+      : [];
 
   return (
-    <div className="space-y-5">
+    <div className={`space-y-5 ${loading ? "refreshing" : ""}`}>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl sm:text-3xl font-semibold">Dashboard</h1>
-          <p className="text-sm text-[#94A3B8]">{periodLabel(period)}</p>
+          <p className="text-sm text-[#94A3B8]">
+            {periodLabel(period)}
+            {offline ? " · offline, numbers may be out of date" : ""}
+          </p>
         </div>
         <div className="flex items-center gap-2">
           <button className="btn btn-ghost text-xs" onClick={() => setPeriod(shiftPeriod(period, -1))}>
@@ -117,36 +125,41 @@ export default function DashboardPage() {
       </div>
 
       <div className="grid lg:grid-cols-2 gap-4">
-        <Card title="50 / 30 / 20 Budget" right={<span className="text-xs text-[#94A3B8]">Base {inr(report.budget.base)}</span>}>
+        <Card
+          title="Budget"
+          right={
+            <span className="text-xs text-[#94A3B8]">
+              {report.budget.frameworkLabel} · Base {inr(report.budget.base)}
+            </span>
+          }
+        >
           {report.budget.base === 0 ? (
             <Empty text="Salary not configured for this period — budget analysis activates once salary is confirmed." />
           ) : (
             <div className="space-y-4">
-              {(["needs", "wants", "savings"] as const).map((key) => {
-                const target = report.budget.targets[key];
-                const actual = report.budget.actual[key];
-                const pct = target ? (actual / target) * 100 : 0;
+              {report.budget.buckets.map((b) => {
+                const isGoal = b.kind === "goal";
+                const tone = isGoal ? (b.progressPct >= 100 ? "#22C55E" : "#8B5CF6") : undefined;
                 return (
-                  <div key={key}>
+                  <div key={b.key}>
                     <div className="flex justify-between text-sm mb-1">
-                      <span className="capitalize">
-                        {key}{" "}
-                        <span className="text-[#94A3B8] text-xs">
-                          benchmark {report.budget.benchmark[key]}% · plan {report.budget.plan[`${key}Pct`]}%
-                        </span>
+                      <span>
+                        {b.label} <span className="text-[#94A3B8] text-xs">{b.pct}%</span>
                       </span>
                       <span className="tabular-nums text-[#94A3B8]">
-                        {inr(actual)} / {inr(target)}
+                        {inr(b.actual)} / {inr(b.target)}
                       </span>
                     </div>
-                    <Bar pct={pct} tone={key === "savings" ? (pct >= 100 ? "#22C55E" : "#8B5CF6") : undefined} />
+                    <Bar pct={b.progressPct} tone={tone} />
+                    <p className="mt-1 text-[11px] text-[#94A3B8]">
+                      {b.progressPct.toFixed(b.progressPct >= 100 ? 0 : 1)}% {isGoal ? "achieved" : "used"}
+                    </p>
                   </div>
                 );
               })}
               <p className="text-xs text-[#94A3B8]">
-                Actual behaviour: {report.budget.actualPct.needs.toFixed(0)} /{" "}
-                {report.budget.actualPct.wants.toFixed(0)} /{" "}
-                {report.budget.actualPct.savings.toFixed(0)} — benchmark is a reference, not a rule.
+                Actual behaviour: {report.budget.buckets.map((b) => b.actualPct.toFixed(0)).join(" / ")} — the plan is a
+                reference, not a rule. Change it in Settings.
               </p>
             </div>
           )}
@@ -373,6 +386,13 @@ export default function DashboardPage() {
   );
 }
 
+function dateInPeriod(period: string, dayOfMonth: number) {
+  const [y, m] = period.split("-").map(Number);
+  const last = new Date(Date.UTC(y, m, 0)).getUTCDate();
+  const day = Math.min(Math.max(dayOfMonth || 1, 1), last);
+  return `${period}-${String(day).padStart(2, "0")}`;
+}
+
 function PendingRule({
   rule,
   period,
@@ -390,9 +410,12 @@ function PendingRule({
 
   async function act(action: "confirm" | "skip") {
     setBusy(true);
+    // Today's date for the current month; for any other month, that month's own date,
+    // so October's salary / interest is recorded in October (not today's month).
+    const date = period === currentPeriod() ? today() : dateInPeriod(period, rule.dayOfMonth);
     await api(`/api/rules/${rule.id}/confirm`, {
       method: "POST",
-      json: { action, amount: Number(amount), period, date: today() },
+      json: { action, amount: Number(amount), period, date },
     }).catch(() => {});
     setBusy(false);
     onDone();

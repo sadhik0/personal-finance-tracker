@@ -1,5 +1,7 @@
 "use client";
 
+import { cacheStore } from "./cacheStore";
+
 export async function api<T = unknown>(
   path: string,
   init?: RequestInit & { json?: unknown },
@@ -8,6 +10,10 @@ export async function api<T = unknown>(
   if (init?.json !== undefined) opts.body = JSON.stringify(init.json);
   const res = await fetch(path, opts);
   const data = await res.json().catch(() => ({}));
+  const method = (init?.method ?? "GET").toUpperCase();
+  // Any successful change makes cached reports stale; an expired session wipes the cache.
+  if (res.ok && method !== "GET" && method !== "HEAD") cacheStore.invalidate();
+  if (res.status === 401) cacheStore.clear();
   if (!res.ok) {
     const err = new Error((data as { error?: string }).error ?? "Request failed") as Error & { status?: number };
     err.status = res.status;
@@ -50,7 +56,12 @@ export const shiftPeriod = (p: string, delta: number) => {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
 };
 
-export const today = () => new Date().toISOString().slice(0, 10);
+/** Today's date in the DEVICE's own time zone (YYYY-MM-DD). toISOString() would give the UTC date,
+ * which is yesterday between midnight and 05:30 in India, and disagrees with currentPeriod(). */
+export const today = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+};
 
 export const shortDay = (d: string) => {
   const [y, m, dd] = d.split("-").map(Number);

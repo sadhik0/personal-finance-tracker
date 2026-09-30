@@ -1,6 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import { useTxSaved } from "@/frontend/lib/useTxSaved";
+import { useApiResource } from "@/frontend/lib/apiCache";
+import { AnalyticsSkeleton } from "@/frontend/components/Skeleton";
 import {
   Bar as RBar,
   BarChart,
@@ -32,7 +35,6 @@ export default function AnalyticsPage() {
   const [customOn, setCustomOn] = useState(false);
   const [customStart, setCustomStart] = useState("");
   const [customEnd, setCustomEnd] = useState("");
-  const [report, setReport] = useState<Report | null>(null);
 
   const bounds = monthBounds(period);
   const rangeEnd = customOn ? customEnd || bounds.end : bounds.end;
@@ -50,11 +52,21 @@ export default function AnalyticsPage() {
     setCustomOn(true);
   }
 
-  useEffect(() => {
-    api<Report>(`/api/report?period=${period}&start=${rangeStart}&end=${rangeEnd}`).then(setReport);
-  }, [period, rangeStart, rangeEnd]);
+  const saved = useTxSaved();
+  const {
+    data: report,
+    loading,
+    error: offline,
+  } = useApiResource<Report>(`/api/report?period=${period}&start=${rangeStart}&end=${rangeEnd}`, saved);
 
-  if (!report) return <div className="py-20 text-center text-[#94A3B8] animate-pulse">Loading analytics…</div>;
+  if (!report)
+    return offline ? (
+      <div className="py-20 text-center text-[#94A3B8]">
+        Can&apos;t load analytics right now. They will refresh when you are back online.
+      </div>
+    ) : (
+      <AnalyticsSkeleton />
+    );
 
   const dayMode = report.range.trendGranularity === "day";
   const trendTick = dayMode ? shortDay : shortPeriod;
@@ -70,7 +82,7 @@ export default function AnalyticsPage() {
   });
 
   return (
-    <div className="space-y-4">
+    <div className={`space-y-4 ${loading ? "refreshing" : ""}`}>
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="text-2xl sm:text-3xl font-semibold">Analytics</h1>

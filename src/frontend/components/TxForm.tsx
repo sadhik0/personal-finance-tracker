@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { today } from "@/frontend/lib/client";
+import { shortDay, today } from "@/frontend/lib/client";
 import { createTransaction, listAccounts, listCategories, updateTransaction } from "@/frontend/lib/offlineApi";
 
 export type Account = { id: string; name: string; kind: string };
@@ -52,7 +52,12 @@ export default function TxForm({
   const [categories, setCategories] = useState<Category[]>([]);
   const [type, setType] = useState(initial?.type ?? "expense");
   const [amount, setAmount] = useState(String(initial?.amount ?? ""));
-  const [date, setDate] = useState(initial?.date ?? today());
+  const todayStr = today();
+  const [date, setDate] = useState(initial?.date ?? todayStr);
+  // Date is optional: it defaults to today. "Change date" reveals the picker (never future dates).
+  const [customDate, setCustomDate] = useState(!!initial?.date && initial.date !== todayStr);
+  // an existing entry that already sits in the future (dashboard salary/interest) keeps its own date
+  const maxDate = initial?.date && initial.date > todayStr ? initial.date : todayStr;
   const [parentId, setParentId] = useState<string>("");
   const [categoryId, setCategoryId] = useState<string>(
     initial?.categoryId ? String(initial.categoryId) : "",
@@ -112,6 +117,7 @@ export default function TxForm({
     if (type === "loan_repayment" && (!accountId || !toAccountId)) {
       return setError("Select both the payment account and the loan being repaid");
     }
+    if (date > maxDate) return setError("Date cannot be in the future");
     setBusy(true);
     try {
       const payload = {
@@ -187,12 +193,36 @@ export default function TxForm({
         </div>
         <div>
           <label className="label">Date</label>
-          <input
-            type="date"
-            className="input"
-            value={date}
-            onChange={(e) => setDate(e.target.value)}
-          />
+          {customDate ? (
+            <div className="flex gap-2">
+              <input
+                type="date"
+                className="input"
+                value={date}
+                max={maxDate}
+                onChange={(e) => setDate(e.target.value || todayStr)}
+              />
+              {!initial?.id && (
+                <button
+                  type="button"
+                  className="btn btn-ghost text-xs whitespace-nowrap"
+                  onClick={() => {
+                    setDate(todayStr);
+                    setCustomDate(false);
+                  }}
+                >
+                  Today
+                </button>
+              )}
+            </div>
+          ) : (
+            <div className="input flex items-center justify-between gap-2">
+              <span>Today · {shortDay(todayStr)}</span>
+              <button type="button" className="text-xs text-[#38BDF8] hover:underline" onClick={() => setCustomDate(true)}>
+                Change date
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
