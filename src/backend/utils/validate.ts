@@ -121,6 +121,18 @@ export function isoDate(v: unknown, field: string): string {
   return s;
 }
 
+/** Rejects dates after today. One day of slack, because the user's calendar day can be a day
+ * ahead of UTC (India, Australia...); the form itself limits the picker to the exact local today. */
+export function notFutureDate(date: string, field = "Date"): string {
+  const limit = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  if (date > limit) throw new InputError(`${field} cannot be in the future`);
+  return date;
+}
+
+/** Salary / interest recorded from the dashboard recommendation may sit in next month. */
+export const isRuleEntry = (meta: unknown) =>
+  !!meta && typeof meta === "object" && (meta as { source?: unknown }).source === "expected_rule";
+
 export function period(v: unknown, field: string): string {
   const s = typeof v === "string" ? v.trim() : "";
   if (!PERIOD_RE.test(s)) throw new InputError(`${field} must look like 2026-09`);

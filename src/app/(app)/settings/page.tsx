@@ -7,6 +7,7 @@ import BudgetFrameworkCard, { type PlanSettings } from "@/frontend/components/Bu
 import { ChartCardSkeleton, PageHeaderSkeleton } from "@/frontend/components/Skeleton";
 import AppLockCard from "@/frontend/components/AppLockCard";
 import BackupCard from "@/frontend/components/BackupCard";
+import DeleteAllTransactionsButton from "@/frontend/components/DeleteAllTransactionsButton";
 import DeleteAccountCard from "@/frontend/components/DeleteAccountCard";
 import db from "@/frontend/lib/db";
 import type { Category } from "@/frontend/components/TxForm";
@@ -529,18 +530,7 @@ export default function SettingsPage() {
 
         <Card title="Data">
           <div className="space-y-3">
-            <button
-              className="btn btn-ghost w-full text-[#EF4444]"
-              onClick={async () => {
-                if (!window.confirm("Delete ALL your transactions? This cannot be undone.")) return;
-                await api("/api/data", { method: "DELETE" });
-                await db.transactions.clear();
-                await db.syncQueue.clear();
-                flash("All transactions deleted");
-              }}
-            >
-              Delete all transactions
-            </button>
+            <DeleteAllTransactionsButton onDone={flash} />
             <p className="text-xs text-[#94A3B8]">
               Excel and PDF exports are available on the Statements page.
             </p>

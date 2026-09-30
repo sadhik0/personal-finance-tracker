@@ -34,6 +34,17 @@ async function refreshPendingCount() {
 }
 
 let flushing = false;
+let retryTimer: ReturnType<typeof setTimeout> | null = null;
+
+/** Only for server-side trouble while the device IS online (429 / 5xx). Being offline needs no timer:
+ * the browser's "online" event triggers the sync the moment the network is back. */
+function retryLater(ms: number) {
+  if (retryTimer || typeof window === "undefined") return;
+  retryTimer = setTimeout(() => {
+    retryTimer = null;
+    if (navigator.onLine) void flushQueue();
+  }, ms);
+}
 
 /** Replays the queue in order. Stops at the first item that fails for a
  * *network* reason (so nothing gets skipped out of order) but drops items
@@ -55,9 +66,15 @@ export async function flushQueue() {
         // fetch throws TypeError when offline/unreachable. A 429 (rate limited)
         // or 5xx (server hiccup) is also temporary: keep the item and retry later.
         const status = (err as { status?: number }).status;
-        const retryLater = err instanceof TypeError || status === 429 || (status !== undefined && status >= 500);
-        if (retryLater) {
+        if (status === 401) {
+          // Session expired. The data is fine, the login is not: keep every queued item.
+          // Syncing resumes by itself after the next login / app open.
+          setStatus({ lastError: "Session expired — log in again to finish syncing" });
+          break;
+        }
+        if (err instanceof TypeError || status === 429 || (status !== undefined && status >= 500)) {
           setStatus({ lastError: "Offline — will retry when back online" });
+          if (navigator.onLine) retryLater(60_000); // server busy: try again in a minute
           break; // stop here, keep order, try again next flush
         }
         // Validation/auth error from the server: this item can never

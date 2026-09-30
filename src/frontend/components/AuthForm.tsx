@@ -1,5 +1,6 @@
 "use client";
 
+import { clearApiCache } from "@/frontend/lib/apiCache";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { api } from "@/frontend/lib/client";
@@ -26,6 +27,7 @@ export default function AuthForm() {
             ? { username, password, displayName, inviteCode }
             : { username, password },
       });
+      clearApiCache();
       router.push("/dashboard");
       router.refresh();
     } catch (err) {

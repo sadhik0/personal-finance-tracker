@@ -2,24 +2,23 @@
 
 import { useEffect, useState } from "react";
 import { api } from "./client";
+import { cacheStore } from "./cacheStore";
 
-/**
- * Stale-while-revalidate for read-only API data.
- *
- * - Revisit a page and the last data shows INSTANTLY while fresh data loads.
- * - Switch period and the previous numbers stay (dimmed, `loading` = true)
- *   instead of the page blanking out.
- * - Offline / failed request: keeps what it has, sets `error`.
- *
- * Nothing here delays a request. It only remembers the previous answer.
- */
-const cache = new Map<string, unknown>();
-
-/** Call on logout so the next person/account never sees old numbers. */
+/** Call on logout / login so the next person never sees old numbers. */
 export function clearApiCache() {
-  cache.clear();
+  cacheStore.clear();
 }
 
+/**
+ * Cache-first loader for read-only API data.
+ *
+ * 1. Fresh copy in the cache (under 3 minutes, nothing changed since)  -> use it, NO server call.
+ * 2. Older copy                                                        -> show it instantly, refresh in the background.
+ * 3. Nothing cached (first visit, cache cleared)                       -> fetch from the server.
+ *
+ * Any save/edit anywhere marks the cache stale, so numbers never lag behind your own changes.
+ * Offline or failed request: keeps showing what it has and sets `error`.
+ */
 export function useApiResource<T>(url: string | null, reloadKey = 0) {
   const [state, setState] = useState<{ url: string | null; data: T | undefined; error: boolean }>({
     url: null,
@@ -30,9 +29,21 @@ export function useApiResource<T>(url: string | null, reloadKey = 0) {
   useEffect(() => {
     if (!url) return;
     let alive = true;
+    const entry = cacheStore.read(url);
+    if (entry) {
+      // async on purpose: shows the saved copy on the next tick
+      void Promise.resolve().then(() => {
+        if (alive) setState({ url, data: entry.data as T, error: false });
+      });
+      if (cacheStore.isFresh(entry)) {
+        return () => {
+          alive = false;
+        };
+      }
+    }
     api<T>(url)
       .then((d) => {
-        cache.set(url, d);
+        cacheStore.write(url, d);
         if (alive) setState({ url, data: d, error: false });
       })
       .catch(() => {
@@ -43,7 +54,7 @@ export function useApiResource<T>(url: string | null, reloadKey = 0) {
     };
   }, [url, reloadKey]);
 
-  const cached = url ? (cache.get(url) as T | undefined) : undefined;
+  const cached = url ? (cacheStore.peek(url)?.data as T | undefined) : undefined;
   const fresh = state.url === url ? state.data : undefined;
   return {
     data: fresh ?? cached ?? state.data,

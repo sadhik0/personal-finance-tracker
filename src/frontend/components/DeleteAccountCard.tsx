@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Card } from "./ui";
 import { api } from "@/frontend/lib/client";
+import { clearApiCache } from "@/frontend/lib/apiCache";
 import { clearLocalData } from "@/frontend/lib/localData";
 
 export default function DeleteAccountCard() {
@@ -20,6 +21,7 @@ export default function DeleteAccountCard() {
     try {
       await api("/api/auth/account", { method: "DELETE", json: { password } });
       await clearLocalData();
+      clearApiCache();
       router.push("/");
       router.refresh();
     } catch (e) {

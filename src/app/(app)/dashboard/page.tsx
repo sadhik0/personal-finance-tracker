@@ -58,7 +58,11 @@ export default function DashboardPage() {
     );
 
   const k = report.kpi;
-  const pending = rules.filter((r) => r.active && r.lastHandledPeriod !== period);
+  // Recommendations exist for this month and next month only (no entries further in the future).
+  const pending =
+    period <= shiftPeriod(currentPeriod(), 1)
+      ? rules.filter((r) => r.active && r.lastHandledPeriod !== period)
+      : [];
 
   return (
     <div className={`space-y-5 ${loading ? "refreshing" : ""}`}>
@@ -382,6 +386,13 @@ export default function DashboardPage() {
   );
 }
 
+function dateInPeriod(period: string, dayOfMonth: number) {
+  const [y, m] = period.split("-").map(Number);
+  const last = new Date(Date.UTC(y, m, 0)).getUTCDate();
+  const day = Math.min(Math.max(dayOfMonth || 1, 1), last);
+  return `${period}-${String(day).padStart(2, "0")}`;
+}
+
 function PendingRule({
   rule,
   period,
@@ -399,9 +410,12 @@ function PendingRule({
 
   async function act(action: "confirm" | "skip") {
     setBusy(true);
+    // Today's date for the current month; for any other month, that month's own date,
+    // so October's salary / interest is recorded in October (not today's month).
+    const date = period === currentPeriod() ? today() : dateInPeriod(period, rule.dayOfMonth);
     await api(`/api/rules/${rule.id}/confirm`, {
       method: "POST",
-      json: { action, amount: Number(amount), period, date: today() },
+      json: { action, amount: Number(amount), period, date },
     }).catch(() => {});
     setBusy(false);
     onDone();
