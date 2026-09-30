@@ -194,8 +194,8 @@ export default function Shell({
       </main>
 
       {/* Mobile / tablet dock */}
-      <nav className="lg:hidden fixed bottom-4 inset-x-0 z-40 flex justify-center px-4">
-        <div className="liquid-glass relative flex items-center gap-1 rounded-full px-3 py-2">
+      <nav className="lg:hidden fixed bottom-4 inset-x-0 z-40 px-3">
+        <div className="liquid-glass relative flex items-center justify-between rounded-full px-2 py-2">
           {dockPos && (
             <div
               aria-hidden
@@ -263,8 +263,8 @@ export default function Shell({
       </nav>
 
       {quick && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 p-0 sm:p-4">
-          <div className="w-full sm:max-w-lg rounded-t-2xl sm:rounded-2xl border border-[#263449] bg-[#111827] p-5 max-h-[92vh] overflow-y-auto animate-fadeup">
+        <div className="fixed inset-0 z-50 flex items-start sm:items-center justify-center bg-black/60 p-0 sm:p-4 overflow-y-auto">
+          <div className="w-full sm:max-w-lg rounded-b-2xl sm:rounded-2xl border border-[#263449] bg-[#111827] p-5 max-h-[92vh] overflow-y-auto animate-fadeup">
             <div className="mb-4 flex items-center justify-between">
               <h3 className="text-lg font-semibold">Quick transaction</h3>
               <button className="text-[#94A3B8]" onClick={() => setQuick(false)}>
@@ -307,7 +307,7 @@ function MobileLink({
         active ? "text-[#38BDF8]" : "text-[#94A3B8]"
       }`}
     >
-      <span className={`text-base ${popped ? "dock-pop" : ""}`}>{icon}</span>
+      <span className={`text-2xl ${popped ? "dock-pop" : ""}`}>{icon}</span>
       {label}
     </Link>
   );
