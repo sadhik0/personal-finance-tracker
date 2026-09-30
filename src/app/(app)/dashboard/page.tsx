@@ -31,6 +31,8 @@ type Rule = {
   dayOfMonth: number;
   active: boolean;
   lastHandledPeriod: string | null;
+  handledPeriods?: string[];
+  createdPeriod: string;
   suggestedAmount?: number;
 };
 
@@ -61,7 +63,13 @@ export default function DashboardPage() {
   // Recommendations exist for this month and next month only (no entries further in the future).
   const pending =
     period <= shiftPeriod(currentPeriod(), 1)
-      ? rules.filter((r) => r.active && r.lastHandledPeriod !== period)
+      ? rules.filter(
+          (r) =>
+            r.active &&
+            period >= r.createdPeriod &&
+            !(r.handledPeriods ?? []).includes(period) &&
+            r.lastHandledPeriod !== period,
+        )
       : [];
 
   return (

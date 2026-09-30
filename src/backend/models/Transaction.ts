@@ -39,6 +39,20 @@ transactionSchema.index(
   { unique: true, partialFilterExpression: { clientId: { $type: "string" } } },
 );
 
+// A rule period is the idempotency key for salary/interest confirmations.
+// Older rule transactions do not have rulePeriod, so this index is safe to add
+// without migrating existing data.
+transactionSchema.index(
+  { userId: 1, "meta.ruleId": 1, "meta.rulePeriod": 1 },
+  {
+    unique: true,
+    partialFilterExpression: {
+      "meta.source": "expected_rule",
+      "meta.rulePeriod": { $type: "string" },
+    },
+  },
+);
+
 applyJsonTransform(transactionSchema);
 
 export const Transaction =

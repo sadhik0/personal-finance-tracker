@@ -12,8 +12,11 @@ const expectedRuleSchema = new Schema({
   dayOfMonth: { type: Number, required: true, default: 30 },
   accountId: { type: Schema.Types.ObjectId, ref: "Account", default: null },
   active: { type: Boolean, required: true, default: true },
-  /** last "YYYY-MM" period handled (confirmed or skipped) */
+  /** Kept for compatibility with older clients and exports. */
   lastHandledPeriod: { type: String, default: null },
+  /** Every month confirmed or skipped for this rule, newest entries need not be contiguous. */
+  handledPeriods: { type: [String], default: [] },
+  createdAt: { type: Date, default: Date.now },
 });
 
 applyJsonTransform(expectedRuleSchema);

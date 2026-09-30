@@ -6,6 +6,20 @@ import { isoDate, oneOf, paramId, period as periodOf, positive, readJson } from 
 
 type Ctx = { params: Promise<{ id: string }> };
 
+function isDuplicateKey(error: unknown) {
+  return typeof error === "object" && error !== null && (error as { code?: unknown }).code === 11000;
+}
+
+async function alreadyRecorded(userId: string, ruleId: string, period: string) {
+  const { start, end } = monthRange(period);
+  return Transaction.exists({
+    userId,
+    "meta.source": "expected_rule",
+    "meta.ruleId": ruleId,
+    $or: [{ "meta.rulePeriod": period }, { date: { $gte: start, $lte: end } }],
+  });
+}
+
 /** body: { action: 'confirm'|'skip', amount?, date?, period } */
 export async function POST(req: Request, ctx: Ctx) {
   return withUser(req, async (user) => {
@@ -16,12 +30,22 @@ export async function POST(req: Request, ctx: Ctx) {
     if (!rule) return bad("Rule not found", 404);
     const action = oneOf(b.action, "action", ["confirm", "skip"] as const);
     const period = periodOf(b.period, "period");
+    const handled = Array.isArray(rule.handledPeriods) ? rule.handledPeriods : [];
+    const hasExistingEntry = await alreadyRecorded(user.id, rule.id, period);
+    const isHandled = handled.includes(period) || rule.lastHandledPeriod === period || Boolean(hasExistingEntry);
 
+    // Skipping is deliberately idempotent: an already handled month needs no write.
     if (action === "skip") {
-      rule.lastHandledPeriod = period;
-      await rule.save();
-      return ok({ skipped: true });
+      if (!isHandled) {
+        await ExpectedRule.updateOne(
+          { _id: rule.id, userId: user.id },
+          { $addToSet: { handledPeriods: period }, $set: { lastHandledPeriod: period } },
+        );
+      }
+      return ok({ skipped: true, alreadyHandled: isHandled });
     }
+
+    if (isHandled) return bad("This month is already recorded", 409);
 
     // Salary / interest can be recorded for the current month or the next one, nothing further ahead.
     // (14 hours of slack: the user's calendar can be ahead of UTC.)
@@ -47,24 +71,28 @@ export async function POST(req: Request, ctx: Ctx) {
         : `${period}-${String(Math.min(Math.max(rule.dayOfMonth || 1, 1), lastDay)).padStart(2, "0")}`;
 
     const isLoanInterest = rule.kind === "loan_interest";
-    const tx = await Transaction.create({
-      userId: user.id,
-      type: rule.kind === "salary" ? "income" : isLoanInterest ? "loan_interest_accrual" : "interest",
-      amount,
-      date: entryDate,
-      // A cash interest/salary transaction lands IN an account; a loan interest
-      // accrual has no source account at all — it grows the loan's own balance.
-      accountId: isLoanInterest ? null : rule.accountId,
-      toAccountId: isLoanInterest ? rule.accountId : null,
-      categoryId,
-      description: rule.label || (rule.kind === "salary" ? "Salary" : isLoanInterest ? "Loan interest accrual" : "Bank interest"),
-      meta: { source: "expected_rule", ruleId: rule.id },
-    });
+    try {
+      const tx = await Transaction.create({
+        userId: user.id,
+        type: rule.kind === "salary" ? "income" : isLoanInterest ? "loan_interest_accrual" : "interest",
+        amount,
+        date: entryDate,
+        accountId: isLoanInterest ? null : rule.accountId,
+        toAccountId: isLoanInterest ? rule.accountId : null,
+        categoryId,
+        description: rule.label || (rule.kind === "salary" ? "Salary" : isLoanInterest ? "Loan interest accrual" : "Bank interest"),
+        meta: { source: "expected_rule", ruleId: rule.id, rulePeriod: period },
+      });
 
-    rule.lastHandledPeriod = period;
-    rule.amount = amount;
-    await rule.save();
-
-    return ok(tx);
+      await ExpectedRule.updateOne(
+        { _id: rule.id, userId: user.id },
+        { $addToSet: { handledPeriods: period }, $set: { lastHandledPeriod: period, amount } },
+      );
+      return ok(tx);
+    } catch (error) {
+      // ExpectedRule's unique index makes two devices/double taps converge safely.
+      if (isDuplicateKey(error)) return bad("This month is already recorded", 409);
+      throw error;
+    }
   });
 }
