@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
 import ServiceWorkerRegister from "@/frontend/components/ServiceWorkerRegister";
+import LaunchSplash from "@/frontend/components/LaunchSplash"; // LAUNCH_SPLASH_V1
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -35,6 +36,8 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         />
       </head>
       <body className="antialiased font-sans">
+        {/* LAUNCH_SPLASH_V1: first thing in the page, so it paints before anything else */}
+        <LaunchSplash />
         <ServiceWorkerRegister />
         {children}
       </body>
