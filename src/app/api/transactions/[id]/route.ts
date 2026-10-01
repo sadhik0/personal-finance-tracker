@@ -5,7 +5,6 @@ import { TX_TYPES } from "@/backend/services/finance.service";
 import {
   idOrNull,
   isoDate,
-  isRuleEntry,
   metaOrNull,
   notFutureDate,
   oneOf,
@@ -29,7 +28,6 @@ export async function PUT(req: Request, ctx: Ctx) {
       accountId: 1,
       toAccountId: 1,
       date: 1,
-      meta: 1,
     });
     if (!existing) return ok(null);
     const patch: Record<string, unknown> = {};
@@ -37,9 +35,9 @@ export async function PUT(req: Request, ctx: Ctx) {
     if (b.amount !== undefined) patch.amount = positive(b.amount, "Amount");
     if (b.date !== undefined) {
       const date = isoDate(b.date, "Date");
-      // An unchanged date is always fine (e.g. editing next month's salary entry's amount).
-      // A NEW date cannot be in the future, except for dashboard salary / interest entries.
-      if (date !== existing.date && !isRuleEntry(existing.meta)) notFutureDate(date);
+      // An unchanged date is always fine (e.g. editing an older entry's amount).
+      // A NEW date cannot be in the future.
+      if (date !== existing.date) notFutureDate(date);
       patch.date = date;
     }
     if (b.categoryId !== undefined)

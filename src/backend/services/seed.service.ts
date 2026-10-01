@@ -1,5 +1,5 @@
 import { connectToDatabase } from "@/backend/db/connect";
-import { Account, Category, ExpectedRule, Settings } from "@/backend/models";
+import { Account, Category, Settings } from "@/backend/models";
 
 const DEFAULT_ACCOUNTS: { name: string; kind: string }[] = [
   { name: "Salary Account", kind: "bank" },
@@ -44,7 +44,7 @@ export async function seedDefaults(userId: string) {
 
   await Settings.updateOne({ userId }, { $setOnInsert: { userId } }, { upsert: true });
 
-  const createdAccounts = await Account.insertMany(
+  await Account.insertMany(
     DEFAULT_ACCOUNTS.map((a, i) => ({
       userId,
       name: a.name,
@@ -75,37 +75,4 @@ export async function seedDefaults(userId: string) {
       );
     }
   }
-
-  const salaryAcc = createdAccounts.find((a) => a.name === "Salary Account");
-  const loanAcc = createdAccounts.find((a) => a.name === "Education Loan");
-  await ExpectedRule.insertMany([
-    {
-      userId,
-      kind: "salary",
-      label: "Monthly Salary",
-      amount: null,
-      dayOfMonth: 30,
-      accountId: salaryAcc?._id ?? null,
-      active: true,
-    },
-    {
-      userId,
-      kind: "interest",
-      label: "Bank Interest",
-      amount: null,
-      dayOfMonth: 1,
-      accountId: salaryAcc?._id ?? null,
-      active: false,
-    },
-    {
-      userId,
-      kind: "loan_interest",
-      label: "Education Loan Interest",
-      amount: null,
-      ratePct: 10,
-      dayOfMonth: 1,
-      accountId: loanAcc?._id ?? null,
-      active: false,
-    },
-  ]);
 }

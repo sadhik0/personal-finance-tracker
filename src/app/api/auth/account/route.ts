@@ -1,5 +1,5 @@
 import { connectToDatabase } from "@/backend/db/connect";
-import { Account, Category, ExpectedRule, Session, Settings, Transaction, User } from "@/backend/models";
+import { Account, Category, Session, Settings, Transaction, User } from "@/backend/models";
 import { readJsonOrEmpty } from "@/backend/utils/validate";
 import { bad, ok, withUser } from "@/backend/utils/response";
 import { destroySession, verifyPassword } from "@/backend/services/auth.service";
@@ -20,7 +20,6 @@ export async function DELETE(req: Request) {
       return bad("Password is incorrect", 401);
 
     await Transaction.deleteMany({ userId: user.id });
-    await ExpectedRule.deleteMany({ userId: user.id });
     await Category.deleteMany({ userId: user.id });
     await Account.deleteMany({ userId: user.id });
     await Settings.deleteMany({ userId: user.id });

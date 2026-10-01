@@ -33,7 +33,6 @@ src/
       Category.ts
       Transaction.ts
       Settings.ts
-      ExpectedRule.ts
       toJSON.ts            Shared helper: makes ids come out as clean
                            strings (e.g. "id": "65fa...") instead of
                            MongoDB's raw ObjectId format
