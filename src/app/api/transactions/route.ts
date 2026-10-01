@@ -7,7 +7,6 @@ import {
   idOrNull,
   InputError,
   isoDate,
-  isRuleEntry,
   notFutureDate,
   metaOrNull,
   oneOf,
@@ -86,9 +85,8 @@ export async function POST(req: Request) {
     await validateTransactionAccountRoles(user.id, type, accountId, toAccountId);
     const meta = metaOrNull(b.meta);
     const date = b.date === undefined ? new Date().toISOString().slice(0, 10) : isoDate(b.date, "Date");
-    // Normal entries cannot be dated in the future. Only salary / interest confirmed from the
-    // dashboard recommendation (meta.source = expected_rule) may sit in next month.
-    if (!isRuleEntry(meta)) notFutureDate(date);
+    // Entries cannot be dated in the future.
+    notFutureDate(date);
     const doc = {
       userId: user.id,
       type,

@@ -129,10 +129,6 @@ export function notFutureDate(date: string, field = "Date"): string {
   return date;
 }
 
-/** Salary / interest recorded from the dashboard recommendation may sit in next month. */
-export const isRuleEntry = (meta: unknown) =>
-  !!meta && typeof meta === "object" && (meta as { source?: unknown }).source === "expected_rule";
-
 export function period(v: unknown, field: string): string {
   const s = typeof v === "string" ? v.trim() : "";
   if (!PERIOD_RE.test(s)) throw new InputError(`${field} must look like 2026-09`);

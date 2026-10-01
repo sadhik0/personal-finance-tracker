@@ -28,7 +28,7 @@ export async function withUser(
   const tAuth = Date.now();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   try {
-    // /api/rules/<id>/confirm and /api/rules/<id2>/confirm share one bucket
+    // /api/transactions/<id> for any id shares one bucket
     const route = new URL(req.url).pathname.replace(/[a-f0-9]{24}/gi, ":id");
     const write = isMutating(req);
     const key = `api:${write ? "w" : "r"}:${route}:${user.id}:${clientIp(req)}`;

@@ -13,29 +13,14 @@ import db from "@/frontend/lib/db";
 import type { Category } from "@/frontend/components/TxForm";
 
 type Settings = PlanSettings;
-type Rule = {
-  id: string;
-  kind: string;
-  label: string;
-  amount: string | null;
-  ratePct: string | null;
-  dayOfMonth: number;
-  accountId: string | null;
-  active: boolean;
-  suggestedAmount?: number;
-};
 type Cat = Category & { limitMode: string | null; limitValue: string | null };
-type Acc = { id: string; name: string; kind: string };
 
 export default function SettingsPage() {
   const [settings, setSettings] = useState<Settings | null>(null);
   const [cats, setCats] = useState<Cat[]>([]);
-  const [rules, setRules] = useState<Rule[]>([]);
-  const [accounts, setAccounts] = useState<Acc[]>([]);
   const [toast, setToast] = useState<string | null>(null);
   const [newCat, setNewCat] = useState({ name: "", parentId: "", bucket: "needs" });
   const [pwd, setPwd] = useState({ current: "", next: "" });
-  const [newLoanRule, setNewLoanRule] = useState({ label: "", accountId: "", ratePct: "10", dayOfMonth: "1" });
 
   const [tick, setTick] = useState(0);
   const load = useCallback(() => setTick((t) => t + 1), []);
@@ -45,15 +30,11 @@ export default function SettingsPage() {
     Promise.all([
       api<Settings>("/api/settings"),
       api<Cat[]>("/api/categories"),
-      api<Rule[]>("/api/rules"),
-      api<Acc[]>("/api/accounts"),
     ])
-      .then(([s, c, r, a]) => {
+      .then(([s, c]) => {
         if (!alive) return;
         setSettings(s);
         setCats(c);
-        setRules(r);
-        setAccounts(a);
       })
       .catch(() => {
         // offline: keep what is on screen
@@ -94,251 +75,6 @@ export default function SettingsPage() {
           load();
         }}
       />
-
-      <Card title="Salary & interest expectations">
-        <div className="space-y-4">
-          {rules.filter((r) => r.kind !== "loan_interest").map((r) => (
-            <div key={r.id} className="grid sm:grid-cols-4 gap-3 items-end border-b border-[#263449] pb-3">
-              <div>
-                <label className="label">{r.kind === "salary" ? "Expected salary" : "Expected interest"}</label>
-                <input
-                  className="input"
-                  defaultValue={r.amount ?? ""}
-                  placeholder="Not configured"
-                  onBlur={(e) =>
-                    api(`/api/rules/${r.id}`, {
-                      method: "PUT",
-                      json: { amount: e.target.value === "" ? null : e.target.value },
-                    }).then(() => flash("Saved"))
-                  }
-                />
-              </div>
-              <div>
-                <label className="label">Label</label>
-                <input
-                  className="input"
-                  defaultValue={r.label}
-                  onBlur={(e) =>
-                    api(`/api/rules/${r.id}`, { method: "PUT", json: { label: e.target.value } }).then(() =>
-                      flash("Saved"),
-                    )
-                  }
-                />
-              </div>
-              <div>
-                <label className="label">Day of month</label>
-                <input
-                  className="input"
-                  defaultValue={r.dayOfMonth}
-                  onBlur={(e) =>
-                    api(`/api/rules/${r.id}`, { method: "PUT", json: { dayOfMonth: e.target.value } }).then(() =>
-                      flash("Saved"),
-                    )
-                  }
-                />
-              </div>
-              <label className="flex items-center gap-2 text-sm pb-2">
-                <input
-                  type="checkbox"
-                  defaultChecked={r.active}
-                  onChange={(e) =>
-                    api(`/api/rules/${r.id}`, { method: "PUT", json: { active: e.target.checked } }).then(() =>
-                      flash("Saved"),
-                    )
-                  }
-                />
-                Active reminder
-              </label>
-            </div>
-          ))}
-          <p className="text-xs text-[#94A3B8]">
-            Nothing is posted automatically — the dashboard asks you to confirm, edit or reject the
-            expected amount each month.
-          </p>
-        </div>
-      </Card>
-
-      <Card title="Loan interest (monthly compounding)">
-        <div className="space-y-4">
-          {rules.filter((r) => r.kind === "loan_interest").length === 0 && (
-            <p className="text-xs text-[#94A3B8]">No loan interest rule yet — add one below for any loan account.</p>
-          )}
-          {rules
-            .filter((r) => r.kind === "loan_interest")
-            .map((r) => {
-              const acc = accounts.find((a) => a.id === r.accountId);
-              return (
-                <div key={r.id} className="rounded-xl border border-[#263449] p-3 space-y-3">
-                  <div className="grid sm:grid-cols-4 gap-3 items-end">
-                    <div>
-                      <label className="label">Loan account</label>
-                      <select
-                        className="input"
-                        defaultValue={r.accountId ?? ""}
-                        onChange={(e) =>
-                          api(`/api/rules/${r.id}`, {
-                            method: "PUT",
-                            json: { accountId: e.target.value || null },
-                          }).then(() => {
-                            flash("Saved");
-                            load();
-                          })
-                        }
-                      >
-                        <option value="">Select account</option>
-                        {accounts
-                          .filter((a) => a.kind === "loan")
-                          .map((a) => (
-                            <option key={a.id} value={a.id}>
-                              {a.name}
-                            </option>
-                          ))}
-                      </select>
-                    </div>
-                    <div>
-                      <label className="label">Label</label>
-                      <input
-                        className="input"
-                        defaultValue={r.label}
-                        onBlur={(e) =>
-                          api(`/api/rules/${r.id}`, { method: "PUT", json: { label: e.target.value } }).then(() =>
-                            flash("Saved"),
-                          )
-                        }
-                      />
-                    </div>
-                    <div>
-                      <label className="label">Monthly rate (%)</label>
-                      <input
-                        className="input"
-                        defaultValue={r.ratePct ?? ""}
-                        placeholder="e.g. 10"
-                        onBlur={(e) =>
-                          api(`/api/rules/${r.id}`, {
-                            method: "PUT",
-                            json: { ratePct: e.target.value === "" ? null : e.target.value },
-                          }).then(() => flash("Saved"))
-                        }
-                      />
-                    </div>
-                    <div>
-                      <label className="label">Applies on day</label>
-                      <input
-                        className="input"
-                        defaultValue={r.dayOfMonth}
-                        onBlur={(e) =>
-                          api(`/api/rules/${r.id}`, { method: "PUT", json: { dayOfMonth: e.target.value } }).then(
-                            () => flash("Saved"),
-                          )
-                        }
-                      />
-                    </div>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <label className="flex items-center gap-2 text-sm">
-                      <input
-                        type="checkbox"
-                        defaultChecked={r.active}
-                        onChange={(e) =>
-                          api(`/api/rules/${r.id}`, { method: "PUT", json: { active: e.target.checked } }).then(
-                            () => flash("Saved"),
-                          )
-                        }
-                      />
-                      Active — ask me to confirm this every month
-                    </label>
-                    <button
-                      className="text-xs text-[#EF4444]"
-                      onClick={() =>
-                        api(`/api/rules/${r.id}`, { method: "DELETE" }).then(() => {
-                          flash("Rule removed");
-                          load();
-                        })
-                      }
-                    >
-                      Delete
-                    </button>
-                  </div>
-                  <p className="text-[11px] text-[#94A3B8]">
-                    {acc
-                      ? `${r.ratePct ?? 0}% of ${acc.name}'s current outstanding balance is suggested each month — you'll always see the exact number and can edit or skip it before it's added.`
-                      : "Pick a loan account above so a monthly amount can be suggested."}
-                  </p>
-                </div>
-              );
-            })}
-
-          <form
-            className="grid sm:grid-cols-5 gap-3 items-end pt-2"
-            onSubmit={async (e) => {
-              e.preventDefault();
-              if (!newLoanRule.accountId) return flash("Pick a loan account first");
-              await api("/api/rules", {
-                method: "POST",
-                json: {
-                  kind: "loan_interest",
-                  label: newLoanRule.label || "Loan Interest",
-                  accountId: newLoanRule.accountId,
-                  ratePct: newLoanRule.ratePct,
-                  dayOfMonth: newLoanRule.dayOfMonth,
-                  active: true,
-                },
-              });
-              setNewLoanRule({ label: "", accountId: "", ratePct: "10", dayOfMonth: "1" });
-              flash("Loan interest rule added");
-              load();
-            }}
-          >
-            <div>
-              <label className="label">Loan account</label>
-              <select
-                className="input"
-                value={newLoanRule.accountId}
-                onChange={(e) => setNewLoanRule({ ...newLoanRule, accountId: e.target.value })}
-              >
-                <option value="">Select account</option>
-                {accounts
-                  .filter((a) => a.kind === "loan")
-                  .map((a) => (
-                    <option key={a.id} value={a.id}>
-                      {a.name}
-                    </option>
-                  ))}
-              </select>
-            </div>
-            <div>
-              <label className="label">Label</label>
-              <input
-                className="input"
-                placeholder="Education Loan Interest"
-                value={newLoanRule.label}
-                onChange={(e) => setNewLoanRule({ ...newLoanRule, label: e.target.value })}
-              />
-            </div>
-            <div>
-              <label className="label">Monthly rate (%)</label>
-              <input
-                className="input"
-                value={newLoanRule.ratePct}
-                onChange={(e) => setNewLoanRule({ ...newLoanRule, ratePct: e.target.value })}
-              />
-            </div>
-            <div>
-              <label className="label">Applies on day</label>
-              <input
-                className="input"
-                value={newLoanRule.dayOfMonth}
-                onChange={(e) => setNewLoanRule({ ...newLoanRule, dayOfMonth: e.target.value })}
-              />
-            </div>
-            <button className="btn btn-primary">Add rule</button>
-          </form>
-          <p className="text-xs text-[#94A3B8]">
-            This never posts by itself. Each month the dashboard shows the suggested interest — based on
-            whatever the loan currently owes — and waits for you to confirm, edit or skip it.
-          </p>
-        </div>
-      </Card>
 
       <Card title="Categories & limits">
         <div className="space-y-3 max-h-[440px] overflow-y-auto pr-1">

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useState } from "react";
 import {
   Area,
   AreaChart,
@@ -16,39 +16,19 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { api, currentPeriod, inr, periodLabel, shiftPeriod, shortPeriod, today } from "@/frontend/lib/client";
+import { currentPeriod, inr, periodLabel, shiftPeriod, shortPeriod } from "@/frontend/lib/client";
 import { useApiResource } from "@/frontend/lib/apiCache";
 import { useTxSaved } from "@/frontend/lib/useTxSaved";
 import { DashboardSkeleton } from "@/frontend/components/Skeleton";
 import { Bar, Card, CHART_COLORS, Empty, KPI, fmtTip, TOOLTIP_STYLE, type Report } from "@/frontend/components/ui";
 
-type Rule = {
-  id: string;
-  kind: string;
-  label: string;
-  amount: string | null;
-  ratePct?: string | null;
-  dayOfMonth: number;
-  active: boolean;
-  lastHandledPeriod: string | null;
-  handledPeriods?: string[];
-  createdPeriod: string;
-  suggestedAmount?: number;
-};
-
 export default function DashboardPage() {
   const [period, setPeriod] = useState(currentPeriod());
   const [openCat, setOpenCat] = useState<string | null>(null);
 
-  // Reload when a transaction is saved / finished syncing, or after confirming a rule.
+  // Reload when a transaction is saved or finishes syncing.
   const saved = useTxSaved();
-  const [manual, setManual] = useState(0);
-  const load = useCallback(() => setManual((t) => t + 1), []);
-  const reloadKey = saved + manual;
-
-  const { data: report, loading, error: offline } = useApiResource<Report>(`/api/report?period=${period}`, reloadKey);
-  const { data: rulesData } = useApiResource<Rule[]>("/api/rules", reloadKey);
-  const rules = rulesData ?? [];
+  const { data: report, loading, error: offline } = useApiResource<Report>(`/api/report?period=${period}`, saved);
 
   if (!report)
     return offline ? (
@@ -60,18 +40,6 @@ export default function DashboardPage() {
     );
 
   const k = report.kpi;
-  // Recommendations exist for this month and next month only (no entries further in the future).
-  const pending =
-    period <= shiftPeriod(currentPeriod(), 1)
-      ? rules.filter(
-          (r) =>
-            r.active &&
-            period >= r.createdPeriod &&
-            !(r.handledPeriods ?? []).includes(period) &&
-            r.lastHandledPeriod !== period,
-        )
-      : [];
-
   return (
     <div className={`space-y-5 ${loading ? "refreshing" : ""}`}>
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -97,14 +65,6 @@ export default function DashboardPage() {
           </button>
         </div>
       </div>
-
-      {pending.length > 0 && (
-        <div className="space-y-2">
-          {pending.map((r) => (
-            <PendingRule key={r.id} rule={r} period={period} onDone={load} />
-          ))}
-        </div>
-      )}
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <KPI label="Income" value={k.income} tone="pos" icon="↓" sub={`Interest ${inr(k.interest)}`} />
@@ -142,7 +102,7 @@ export default function DashboardPage() {
           }
         >
           {report.budget.base === 0 ? (
-            <Empty text="Salary not configured for this period — budget analysis activates once salary is confirmed." />
+            <Empty text="No salary recorded in this period. The budget appears once you add a salary (income) transaction." />
           ) : (
             <div className="space-y-4">
               {report.budget.buckets.map((b) => {
@@ -390,74 +350,6 @@ export default function DashboardPage() {
           </div>
         </div>
       </Card>
-    </div>
-  );
-}
-
-function dateInPeriod(period: string, dayOfMonth: number) {
-  const [y, m] = period.split("-").map(Number);
-  const last = new Date(Date.UTC(y, m, 0)).getUTCDate();
-  const day = Math.min(Math.max(dayOfMonth || 1, 1), last);
-  return `${period}-${String(day).padStart(2, "0")}`;
-}
-
-function PendingRule({
-  rule,
-  period,
-  onDone,
-}: {
-  rule: Rule;
-  period: string;
-  onDone: () => void;
-}) {
-  const isLoanInterest = rule.kind === "loan_interest";
-  const [amount, setAmount] = useState(
-    isLoanInterest ? String(rule.suggestedAmount ?? "") : (rule.amount ?? ""),
-  );
-  const [busy, setBusy] = useState(false);
-
-  async function act(action: "confirm" | "skip") {
-    setBusy(true);
-    // Today's date for the current month; for any other month, that month's own date,
-    // so October's salary / interest is recorded in October (not today's month).
-    const date = period === currentPeriod() ? today() : dateInPeriod(period, rule.dayOfMonth);
-    await api(`/api/rules/${rule.id}/confirm`, {
-      method: "POST",
-      json: { action, amount: Number(amount), period, date },
-    }).catch(() => {});
-    setBusy(false);
-    onDone();
-  }
-
-  return (
-    <div className="card p-4 flex flex-wrap items-center gap-3 border-[#38BDF8]/40">
-      <div className="flex-1 min-w-[180px]">
-        <p className="text-sm font-medium">
-          {rule.kind === "salary"
-            ? "Salary expected"
-            : isLoanInterest
-              ? `Loan interest due · ${rule.ratePct ?? 0}% this month`
-              : "Bank interest expected"}{" "}
-          · {rule.label || "—"}
-        </p>
-        <p className="text-[11px] text-[#94A3B8]">
-          {isLoanInterest
-            ? `Suggested from the current balance — the exact figure moves with what you owe, confirm or edit before it's added to the loan.`
-            : `Day ${rule.dayOfMonth} of ${period} — confirm the actual amount received.`}
-        </p>
-      </div>
-      <input
-        className="input w-32"
-        placeholder="Amount"
-        value={amount}
-        onChange={(e) => setAmount(e.target.value)}
-      />
-      <button className="btn btn-primary text-xs" disabled={busy} onClick={() => act("confirm")}>
-        {isLoanInterest ? "Confirm & add to loan" : "Confirm received"}
-      </button>
-      <button className="btn btn-ghost text-xs" disabled={busy} onClick={() => act("skip")}>
-        {isLoanInterest ? "Skip this month" : "Not received"}
-      </button>
     </div>
   );
 }
