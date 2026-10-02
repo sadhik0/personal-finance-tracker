@@ -25,6 +25,8 @@ export async function PUT(req: Request) {
   return withUser(req, async (user) => {
     await connectToDatabase();
     const b = await readJson(req);
+    const requestedTimeZone = req.headers.get("x-timezone") || "UTC";
+    const timeZone = (() => { try { new Intl.DateTimeFormat("en-US", { timeZone: requestedTimeZone }); return requestedTimeZone; } catch { return "UTC"; } })();
     const patch: Record<string, unknown> = {};
     for (const key of [
       "needsPct",
@@ -44,7 +46,7 @@ export async function PUT(req: Request) {
       const bp = b.budgetPlan as Record<string, unknown> | null;
       if (!bp || typeof bp !== "object" || Array.isArray(bp)) throw new InputError("budgetPlan is invalid");
       const framework = oneOf(bp.framework, "framework", FRAMEWORKS) as Framework;
-      const from = bp.from ? period(bp.from, "from") : currentPeriod();
+      const from = bp.from ? period(bp.from, "from") : currentPeriod(timeZone);
       let allocation: Allocation;
       if (framework === "custom") {
         const a = (bp.allocation ?? {}) as Record<string, unknown>;

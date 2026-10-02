@@ -10,6 +10,8 @@ import LockScreen from "./LockScreen";
 import SyncStatus from "./SyncStatus";
 import { api, currentPeriod, periodLabel } from "@/frontend/lib/client";
 import { clearLocalData, confirmLogout } from "@/frontend/lib/localData";
+import { setActiveUserId } from "@/frontend/lib/db";
+import { useEffect } from "react";
 
 const NAV = [
   { href: "/dashboard", label: "Dashboard", icon: "◉" },
@@ -22,10 +24,15 @@ const NAV = [
 export default function Shell({
   children,
   displayName,
+  userId,
 }: {
   children: ReactNode;
   displayName: string;
+  userId: string;
 }) {
+  useLayoutEffect(() => {
+    setActiveUserId(userId);
+  }, [userId]);
   const pathname = usePathname();
   const router = useRouter();
   const [quick, setQuick] = useState(false);
@@ -79,6 +86,7 @@ export default function Shell({
     }
     await clearLocalData();
     clearApiCache();
+    setActiveUserId(null);
     router.push("/");
     router.refresh();
   }

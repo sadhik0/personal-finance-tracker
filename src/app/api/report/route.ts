@@ -15,6 +15,8 @@ const MAX_CUSTOM_DAYS = 1100;
 export async function GET(req: Request) {
   return withUser(req, async (user) => {
     const url = new URL(req.url);
+    const timeZone = req.headers.get("x-timezone") || "UTC";
+    const safeTimeZone = (() => { try { new Intl.DateTimeFormat("en-US", { timeZone }); return timeZone; } catch { return "UTC"; } })();
     const kind = url.searchParams.get("kind");
     const key = url.searchParams.get("key");
 
@@ -33,7 +35,7 @@ export async function GET(req: Request) {
       return ok(report);
     }
 
-    const period = key && isValidPeriodKey("month", key) ? key : url.searchParams.get("period") ?? currentPeriod();
+    const period = key && isValidPeriodKey("month", key) ? key : url.searchParams.get("period") ?? currentPeriod(safeTimeZone);
     const months = Number(url.searchParams.get("months") ?? 6);
     const start = url.searchParams.get("start");
     const end = url.searchParams.get("end");

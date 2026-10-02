@@ -73,7 +73,7 @@ export default function AnalyticsPage() {
 
   const savingsSeries = report.trend.map((t) => ({
     period: t.period,
-    rate: t.income ? Math.round(((t.income - t.expense) / t.income) * 1000) / 10 : 0,
+    rate: t.income ? Math.round((t.savings / t.income) * 1000) / 10 : 0,
   }));
 
   const budgetVsActual = report.categories.slice(0, 8).map((c) => {

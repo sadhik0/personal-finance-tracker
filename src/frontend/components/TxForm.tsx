@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { shortDay, today } from "@/frontend/lib/client";
 import { createTransaction, listAccounts, listCategories, updateTransaction } from "@/frontend/lib/offlineApi";
 
-export type Account = { id: string; name: string; kind: string };
+export type Account = { id: string; name: string; kind: string; archived?: boolean };
 export type Category = {
   id: string;
   name: string;
@@ -78,7 +78,7 @@ export default function TxForm({
   useEffect(() => {
     Promise.all([listAccounts<Account>(), listCategories<Category>()]).then(
       ([a, c]) => {
-        setAccounts(a);
+        setAccounts(a.filter((x) => !x.archived || x.id === initial?.accountId || x.id === initial?.toAccountId));
         setCategories(c);
         if (!initial?.accountId) setAccountId(String(a.find((x) => x.kind === "bank")?.id ?? ""));
         if (!initial?.toAccountId && (type === "loan_interest_accrual" || type === "loan_repayment")) {

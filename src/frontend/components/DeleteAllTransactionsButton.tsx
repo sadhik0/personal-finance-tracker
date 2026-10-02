@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { api } from "@/frontend/lib/client";
-import db from "@/frontend/lib/db";
+import { getDb } from "@/frontend/lib/db";
 
 /** "Delete all transactions", guarded by the account password. */
 export default function DeleteAllTransactionsButton({ onDone }: { onDone: (message: string) => void }) {
@@ -23,8 +23,8 @@ export default function DeleteAllTransactionsButton({ onDone }: { onDone: (messa
     setBusy(true);
     try {
       await api("/api/data", { method: "DELETE", json: { password } });
-      await db.transactions.clear();
-      await db.syncQueue.clear();
+      await getDb().transactions.clear();
+      await getDb().syncQueue.clear();
       close();
       onDone("All transactions deleted");
     } catch (e) {
