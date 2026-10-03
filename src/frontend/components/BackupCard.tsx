@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Card } from "./ui";
-import db from "@/frontend/lib/db";
+import { getDb } from "@/frontend/lib/db";
 import { fetchAllTransactions } from "@/frontend/lib/fetchAll";
 import { createTransaction, listAccounts, listCategories } from "@/frontend/lib/offlineApi";
 import { TYPES } from "./TxForm";
@@ -29,7 +29,7 @@ export default function BackupCard() {
   const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    db.settings.get("lastBackupAt").then((r) => setLast((r?.value as string) ?? null));
+    getDb().settings.get("lastBackupAt").then((r) => setLast((r?.value as string) ?? null));
   }, []);
 
   async function exportBackup() {
@@ -40,7 +40,7 @@ export default function BackupCard() {
       if (navigator.onLine) {
         txs = await fetchAllTransactions<BackupTx>();
       } else {
-        const rows = await db.transactions.toArray();
+        const rows = await getDb().transactions.toArray();
         txs = rows
           .filter((r) => !r.deletedAt)
           .map((r) => ({
@@ -68,7 +68,7 @@ export default function BackupCard() {
       a.remove();
       URL.revokeObjectURL(url);
       const now = new Date().toISOString();
-      await db.settings.put({ key: "lastBackupAt", value: now });
+      await getDb().settings.put({ key: "lastBackupAt", value: now });
       setLast(now);
       setMsg(`Exported ${txs.length} transactions.`);
     } catch (e) {

@@ -82,10 +82,10 @@ export default function AccountsPage() {
     if (!confirmDelete) return;
     setDeleteBusy(true);
     try {
-      await api(`/api/accounts/${confirmDelete.id}`, { method: "DELETE" });
+      const result = await api<{ archived?: boolean; message?: string }>(`/api/accounts/${confirmDelete.id}`, { method: "DELETE" });
       if (open === confirmDelete.id) setOpen(null);
       setConfirmDelete(null);
-      setToast(`${confirmDelete.name} deleted`);
+      setToast(result.archived ? (result.message ?? `${confirmDelete.name} archived`) : `${confirmDelete.name} deleted`);
       await load();
     } catch (err) {
       setToast(err instanceof Error ? err.message : "Could not delete account");
@@ -115,7 +115,7 @@ export default function AccountsPage() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium">{a.name}</p>
-                <p className="text-[11px] uppercase tracking-wide text-[#94A3B8]">{a.kind}</p>
+                <p className="text-[11px] uppercase tracking-wide text-[#94A3B8]">{a.kind}{a.archived ? " · Archived" : ""}</p>
               </div>
               <span
                 className={`text-lg font-semibold tabular-nums ${
@@ -222,8 +222,8 @@ export default function AccountsPage() {
                   Delete {confirmDelete.name}?
                 </h2>
                 <p className="mt-1 text-sm leading-6 text-[#94A3B8]">
-                  This removes the account from your tracker. Its existing transactions are not deleted, but they
-                  will no longer contribute to this account&apos;s displayed balance.
+                  If this account has transactions, it will be archived so its history and balances stay correct.
+                  Empty accounts can be permanently deleted.
                 </p>
               </div>
             </div>

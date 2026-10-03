@@ -4,6 +4,7 @@ import { clearApiCache } from "@/frontend/lib/apiCache";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { api } from "@/frontend/lib/client";
+import { setActiveUserId } from "@/frontend/lib/db";
 
 export default function AuthForm() {
   const router = useRouter();
@@ -20,13 +21,14 @@ export default function AuthForm() {
     setBusy(true);
     setError("");
     try {
-      await api(`/api/auth/${mode}`, {
+      const account = await api<{ id: string }>(`/api/auth/${mode}`, {
         method: "POST",
         json:
           mode === "register"
             ? { username, password, displayName, inviteCode }
             : { username, password },
       });
+      setActiveUserId(account.id);
       clearApiCache();
       router.push("/dashboard");
       router.refresh();

@@ -35,7 +35,13 @@ export async function POST(req: Request) {
   const existing = await User.findOne({ username });
   if (existing) return bad("Username already taken");
 
-  const user = await User.create({ username, displayName, passwordHash: hashPassword(password) });
+  let user;
+  try {
+    user = await User.create({ username, displayName, passwordHash: hashPassword(password) });
+  } catch (err) {
+    if ((err as { code?: number }).code === 11000) return bad("Username already taken", 409);
+    throw err;
+  }
 
   await seedDefaults(user.id);
   await createSession(user.id, req.headers.get("user-agent") ?? "");

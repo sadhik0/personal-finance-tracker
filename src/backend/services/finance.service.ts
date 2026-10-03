@@ -40,9 +40,11 @@ export function monthRange(period: string) {
 
 export const iso = (d: Date) => d.toISOString().slice(0, 10);
 
-export function currentPeriod() {
-  const d = new Date();
-  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
+export function currentPeriod(timeZone = "UTC") {
+  const parts = new Intl.DateTimeFormat("en-CA", { timeZone, year: "numeric", month: "2-digit" }).formatToParts(new Date());
+  const year = parts.find((p) => p.type === "year")?.value ?? "1970";
+  const month = parts.find((p) => p.type === "month")?.value ?? "01";
+  return `${year}-${month}`;
 }
 
 export function shiftPeriod(period: string, delta: number) {

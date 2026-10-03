@@ -88,7 +88,7 @@ export async function buildReport(
   const monthSummaries = periodMonths.map((m) => ({ month: m, s: summarize(monthTx.get(m) ?? []), n: monthTx.get(m)?.length ?? 0 }));
 
   const base = s.income; // salary-based budget base (excludes family + interest)
-  const savingsForBudget = s.income - s.expense - s.familyOut - s.loanPayment;
+  const savingsForBudget = s.savings;
   const history: PlanEntry[] = ((st?.planHistory ?? []) as Record<string, unknown>[]).map((e) => ({
     from: String(e.from),
     framework: e.framework as Framework,
@@ -143,7 +143,7 @@ export async function buildReport(
     loanPayment: ms.loanPayment,
     familyIn: ms.familyIn,
     familyOut: ms.familyOut,
-    savings: ms.income - ms.expense - ms.familyOut - ms.loanPayment,
+    savings: ms.savings,
     net: ms.netCashFlow,
   }));
   // Averages and highest/lowest only count months that have started AND have data,

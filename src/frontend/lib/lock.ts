@@ -1,4 +1,4 @@
-import db from "./db";
+import { getDb } from "./db";
 import { api } from "./client";
 
 const ITERATIONS = 150_000;
@@ -25,11 +25,11 @@ async function derive(pin: string, saltHex: string): Promise<string> {
 }
 
 async function getSetting(key: string): Promise<string | null> {
-  const row = await db.settings.get(key);
+  const row = await getDb().settings.get(key);
   return (row?.value as string) ?? null;
 }
 async function setSetting(key: string, value: unknown) {
-  await db.settings.put({ key, value });
+  await getDb().settings.put({ key, value });
 }
 
 export async function hasLocalPin(): Promise<boolean> {
@@ -72,7 +72,7 @@ export async function confirmPinOnNewDevice(pin: string): Promise<boolean> {
 }
 
 export async function clearPin(): Promise<void> {
-  await db.settings.bulkDelete(["pinSalt", "pinHash", "lockEnabled"]);
+  await getDb().settings.bulkDelete(["pinSalt", "pinHash", "lockEnabled"]);
   try {
     await api("/api/auth/pin", { method: "DELETE" });
   } catch {
@@ -81,7 +81,7 @@ export async function clearPin(): Promise<void> {
 }
 
 export async function isLockEnabled(): Promise<boolean> {
-  return (await db.settings.get("lockEnabled"))?.value === true;
+  return (await getDb().settings.get("lockEnabled"))?.value === true;
 }
 
 export async function getAutoLockMinutes(): Promise<number> {

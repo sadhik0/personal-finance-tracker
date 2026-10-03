@@ -9,8 +9,9 @@ import AppLockCard from "@/frontend/components/AppLockCard";
 import BackupCard from "@/frontend/components/BackupCard";
 import DeleteAllTransactionsButton from "@/frontend/components/DeleteAllTransactionsButton";
 import DeleteAccountCard from "@/frontend/components/DeleteAccountCard";
-import db from "@/frontend/lib/db";
 import type { Category } from "@/frontend/components/TxForm";
+import SyncProblems from "@/frontend/components/SyncProblems";
+import HowItWorks from "@/frontend/components/HowItWorks";
 
 type Settings = PlanSettings;
 type Cat = Category & { limitMode: string | null; limitValue: string | null };
@@ -68,6 +69,8 @@ export default function SettingsPage() {
         <p className="text-sm text-[#94A3B8]">Budget, categories, limits, salary, security and data</p>
       </div>
 
+      <HowItWorks />
+      <SyncProblems />
       <BudgetFrameworkCard
         settings={settings}
         onSaved={(m) => {

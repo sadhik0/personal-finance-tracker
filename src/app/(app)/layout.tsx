@@ -6,5 +6,5 @@ import Shell from "@/frontend/components/Shell";
 export default async function AppLayout({ children }: { children: ReactNode }) {
   const user = await getCurrentUser();
   if (!user) redirect("/");
-  return <Shell displayName={user.displayName || user.username}>{children}</Shell>;
+  return <Shell userId={user.id} displayName={user.displayName || user.username}>{children}</Shell>;
 }
