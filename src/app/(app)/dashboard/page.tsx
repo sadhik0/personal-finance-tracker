@@ -16,19 +16,24 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { currentPeriod, inr, periodLabel, shiftPeriod, shortPeriod } from "@/frontend/lib/client";
+import { inr, shortPeriod } from "@/frontend/lib/client";
+import DashboardPeriodFilter from "@/frontend/components/DashboardPeriodFilter";
+import InfoPopover from "@/frontend/components/InfoPopover";
+import { dashboardPeriodLabel, type DashboardPeriod } from "@/shared/dashboardPeriods";
 import { useApiResource } from "@/frontend/lib/apiCache";
 import { useTxSaved } from "@/frontend/lib/useTxSaved";
 import { DashboardSkeleton } from "@/frontend/components/Skeleton";
 import { Bar, Card, CHART_COLORS, Empty, KPI, fmtTip, TOOLTIP_STYLE, type Report } from "@/frontend/components/ui";
 
 export default function DashboardPage() {
-  const [period, setPeriod] = useState(currentPeriod());
+  const [period, setPeriod] = useState<DashboardPeriod>({ kind: "all", key: "all" });
+  const [weeks, setWeeks] = useState(1);
   const [openCat, setOpenCat] = useState<string | null>(null);
 
   // Reload when a transaction is saved or finishes syncing.
   const saved = useTxSaved();
-  const { data: report, loading, error: offline } = useApiResource<Report>(`/api/report?period=${period}`, saved);
+  const reportUrl = period.kind === "all" ? "/api/report?kind=all" : `/api/report?kind=${period.kind}&key=${encodeURIComponent(period.key)}${period.kind === "week" ? `&weeks=${weeks}` : ""}`;
+  const { data: report, loading, error: offline } = useApiResource<Report>(reportUrl, saved);
 
   if (!report)
     return offline ? (
@@ -42,28 +47,12 @@ export default function DashboardPage() {
   const k = report.kpi;
   return (
     <div className={`space-y-5 ${loading ? "refreshing" : ""}`}>
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className="flex w-full min-w-0 flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl sm:text-3xl font-semibold">Dashboard</h1>
-          <p className="text-sm text-[#94A3B8]">
-            {periodLabel(period)}
-            {offline ? " · offline, numbers may be out of date" : ""}
-          </p>
+          <p className="text-sm text-[#94A3B8]">{dashboardPeriodLabel(period, weeks)}{offline ? " · offline, numbers may be out of date" : ""}</p>
         </div>
-        <div className="flex items-center gap-2">
-          <button className="btn btn-ghost text-xs" onClick={() => setPeriod(shiftPeriod(period, -1))}>
-            ←
-          </button>
-          <input
-            type="month"
-            className="input w-[150px]"
-            value={period}
-            onChange={(e) => setPeriod(e.target.value || currentPeriod())}
-          />
-          <button className="btn btn-ghost text-xs" onClick={() => setPeriod(shiftPeriod(period, 1))}>
-            →
-          </button>
-        </div>
+        <div className="w-full min-w-0 sm:ml-auto sm:w-auto sm:max-w-[70%]"><DashboardPeriodFilter value={period} weeks={weeks} onChange={setPeriod} onWeeksChange={setWeeks} /></div>
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
@@ -75,12 +64,14 @@ export default function DashboardPage() {
           tone="accent"
           icon="◆"
           sub={`Savings rate ${k.savingsRate.toFixed(1)}%`}
+          help={<InfoPopover label="Explain savings calculation"><strong className="text-[#F8FAFC]">Savings calculation</strong><br />{inr(k.income)} in-hand income<br />+ {inr(k.interest)} bank interest<br />− {inr(k.expense)} expenses<br />− {inr(k.familyOut)} family support given<br />− {inr(k.loanPayment)} loan repayments<br /><strong className="text-[#22C55E]">= {inr(k.savings)} savings</strong><br /><span className="text-[#94A3B8]">Family received and investments are tracked separately.</span></InfoPopover>}
         />
         <KPI
           label="Net Cash Flow"
           value={k.netCashFlow}
           tone={k.netCashFlow >= 0 ? "pos" : "neg"}
           icon="⇄"
+          help={<InfoPopover label="Explain net cash flow"><strong className="text-[#F8FAFC]">Net cash flow</strong><br />{inr(k.income)} income + {inr(k.interest)} interest + {inr(k.familyIn)} family received<br />− {inr(k.expense)} expenses − {inr(k.familyOut)} family given<br />− {inr(k.loanPayment)} loan repayments − {inr(k.investment)} investments<br /><strong className="text-[#22C55E]">= {inr(k.netCashFlow)} net cash flow</strong><br /><span className="text-[#94A3B8]">This is period movement, not current bank balance.</span></InfoPopover>}
         />
       </div>
 
@@ -101,6 +92,7 @@ export default function DashboardPage() {
             </span>
           }
         >
+          {report.budget.mixed && <p className="-mt-2 mb-3 text-xs text-[#94A3B8]">Plan varies during this period · Targets are calculated month by month.</p>}
           {report.budget.base === 0 ? (
             <Empty text="No salary recorded in this period. The budget appears once you add a salary (income) transaction." />
           ) : (
